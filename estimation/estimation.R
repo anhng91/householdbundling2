@@ -29,7 +29,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-# devtools::install(upgrade='never')
+devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
@@ -94,7 +94,7 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 200, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 100, replace=TRUE)
   sample_identify_pref = sample(sample_identify_pref, 100, replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, 100, replace=TRUE)
 }
@@ -403,124 +403,44 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     moment_eligible_hh_output = mclapply(sample_r_theta, function(mini_data_index) tryCatch(household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = TRUE), error=function(e) e), mc.cores=numcores)
   }
 
-  root_r = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) output_hh$root_r))
-  hh_theta = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) output_hh$hh_theta))
   relevant_index = which(full_insurance_indicator + no_insurance_indicator == 1)
-  fx_r = function(x_transform, derivative=FALSE, silent=TRUE) {
-    root_r = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) output_hh$root_r))
-    hh_theta = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) output_hh$hh_theta))
+  fx_r = function(x_transform, derivative=FALSE, silent=TRUE, return_m=FALSE) {
+    Gauss_laguerre_draws = gaussLaguerre(100,0)
     sd_r = exp(x_transform[[1]]$sigma_r);
-    correlation = x_transform[[1]]$correlation
-    mean_vec = rep(X_hh_theta_r %*% x_transform[[1]]$beta_r, each = n_halton_at_r) + correlation * hh_theta
+    realized_insurance_r = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) {
+      mean_r =  output_hh$X_hh %*% x_transform[[1]]$beta_r 
+      expected_p = lapply(output_hh$realized_insurance_r, function(elem) sum(elem * exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))/sum(exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))) %>% unlist()
+      expected_p = mean(expected_p)
+      return(expected_p)
+    }))
 
-    denominator = (pnorm((5 - mean_vec)/sd_r) - pnorm((0 - mean_vec)/sd_r))
-
-    full_insurance_prob = (pnorm((5 - mean_vec)/sd_r) - pnorm((root_r - mean_vec)/sd_r))/(denominator + 1e-20)
-
-    no_insurance_prob = (pnorm((root_r - mean_vec)/sd_r) - pnorm((0 - mean_vec)/sd_r))/(denominator + 1e-20)
-
-    output = -sum(colMeans(matrix(full_insurance_prob, nrow=n_halton_at_r))[full_insurance_indicator]^2) - sum(colMeans(matrix(no_insurance_prob, nrow=n_halton_at_r))[no_insurance_indicator]^2)
-
-    if (derivative) {
-      derivative_root_r = list(); 
-      derivative_root_r$beta_theta = do.call('rbind', lapply(moment_eligible_hh_output, function(output_hh) (t(matrix(output_hh$derivative_root_r$theta_bar, nrow = output_hh$HHsize)) %*% output_hh$X_ind_year))); 
-      derivative_root_r$beta_theta_ind = do.call('rbind', lapply(moment_eligible_hh_output, function(output_hh) (t(matrix(output_hh$derivative_root_r$theta_bar, nrow = output_hh$HHsize)) %*% output_hh$X_ind)))
-      derivative_root_r$sigma_thetabar = do.call('c', lapply(moment_eligible_hh_output, function(output_hh) (rowSums(t(matrix(output_hh$derivative_root_r$theta_bar, nrow = output_hh$HHsize)))) * exp(x_transform[[1]][['sigma_thetabar']])))
-      derivative_root_r$correlation = do.call('c', lapply(moment_eligible_hh_output, function(output_hh) (rowSums(t(matrix(output_hh$derivative_root_r$theta_bar, nrow = output_hh$HHsize))) * output_hh$hh_theta) * (x_transform[[1]][['correlation']])));
-      derivative_root_r$beta_gamma = do.call('rbind', lapply(moment_eligible_hh_output, function(output_hh) (t(matrix(output_hh$derivative_root_r$gamma, nrow = output_hh$HHsize)) %*% output_hh$X_ind)))
-      derivative_root_r$sigma_gamma = do.call('c', lapply(moment_eligible_hh_output, function(output_hh) (rowSums(t(matrix(output_hh$derivative_root_r$gamma, nrow = output_hh$HHsize)) * output_hh$gamma_draw)) * exp(x_transform[[1]][['sigma_gamma']])))
-      derivative_root_r$beta_delta = do.call('rbind', lapply(moment_eligible_hh_output, function(output_hh) (t(matrix(output_hh$derivative_root_r$delta, nrow = output_hh$HHsize)) %*% output_hh$X_ind)))
-      derivative_root_r$sigma_delta = do.call('c', lapply(moment_eligible_hh_output, function(output_hh) (rowSums(t(matrix(output_hh$derivative_root_r$delta, nrow = output_hh$HHsize)) * output_hh$delta_draw)) * exp(x_transform[[1]][['sigma_delta']])))
-      derivative_root_r$beta_omega = do.call('rbind', lapply(moment_eligible_hh_output, function(output_hh) (apply(output_hh$X_hh, 2, function(x) x * output_hh$derivative_root_r$omega))))
-      derivative_root_r$sigma_omega = do.call('c', lapply(moment_eligible_hh_output, function(output_hh) (output_hh$derivative_root_r$omega * output_hh$omega_draw) * exp(x_transform[[1]][['sigma_omega']])))
-
-      denominator_derivative = list(); 
-      denominator_derivative$mean = (-dnorm((5 - mean_vec)/sd_r)/sd_r + dnorm((0 - mean_vec)/sd_r)/sd_r)
-      denominator_derivative$sd =  (-dnorm((5 - mean_vec)/sd_r)/sd_r^2 + dnorm((0 - mean_vec)/sd_r)/sd_r^2)
-
-      full_insurance_prob_derivative = list(); 
-      full_insurance_prob_derivative$mean = (-dnorm((5 - mean_vec)/sd_r)/sd_r + dnorm((root_r - mean_vec)/sd_r)/sd_r)/(denominator + 1e-20) - (pnorm((5 - mean_vec)/sd_r) - pnorm((root_r - mean_vec)/sd_r))/(denominator + 1e-20)^2 * denominator_derivative$mean; 
-      full_insurance_prob_derivative$sd = (-dnorm((5 - mean_vec)/sd_r)/sd_r^2 + dnorm((root_r - mean_vec)/sd_r)/sd_r^2)/(denominator + 1e-20) - (pnorm((5 - mean_vec)/sd_r) - pnorm((root_r - mean_vec)/sd_r))/(denominator + 1e-20)^2 * denominator_derivative$sd;
-      full_insurance_prob_derivative$root_r = list(); 
-      for (name_i in c('beta_theta','beta_theta_ind', 'beta_gamma', 'beta_delta', 'beta_omega', 'sigma_thetabar', 'sigma_delta', 'sigma_omega', 'sigma_gamma', 'correlation')) {
-        if (grepl('beta',name_i)) {
-          full_insurance_prob_derivative$root_r[[name_i]] = matrix(0, nrow = length(sample_r_theta) * n_halton_at_r, ncol = ncol(derivative_root_r[[name_i]]));
-          for (col_index in 1:ncol(full_insurance_prob_derivative$root_r[[name_i]])) {
-            full_insurance_prob_derivative$root_r[[name_i]][,col_index] = - dnorm((root_r - mean_vec)/sd_r)/sd_r * derivative_root_r[[name_i]][,col_index]/(denominator + 1e-20)
-          }
-        } else {
-          full_insurance_prob_derivative$root_r[[name_i]] =- dnorm((root_r - mean_vec)/sd_r)/sd_r * derivative_root_r[[name_i]]/(denominator + 1e-20);
-        }
-      }  
-
-      no_insurance_prob_derivative = list(); 
-      no_insurance_prob_derivative$mean = (- dnorm((root_r - mean_vec)/sd_r)/sd_r + dnorm((0 - mean_vec)/sd_r)/sd_r)/(denominator + 1e-20) - (pnorm((root_r - mean_vec)/sd_r) - pnorm((0 - mean_vec)/sd_r))/(denominator + 1e-20)^2 * denominator_derivative$mean; 
-      no_insurance_prob_derivative$sd = (- dnorm((root_r - mean_vec)/sd_r)/sd_r^2 + dnorm((0 - mean_vec)/sd_r)/sd_r^2)/(denominator + 1e-20) - (pnorm((root_r - mean_vec)/sd_r) - pnorm((0 - mean_vec)/sd_r))/(denominator + 1e-20)^2 * denominator_derivative$sd; 
-
-      no_insurance_prob_derivative$root_r = list()
-
-      for (name_i in c('beta_theta','beta_theta_ind', 'beta_gamma', 'beta_delta', 'beta_omega', 'sigma_thetabar', 'sigma_delta', 'sigma_omega', 'sigma_gamma', 'correlation')) {
-        if (grepl('beta',name_i)) {
-          no_insurance_prob_derivative$root_r[[name_i]] = matrix(0, nrow = length(sample_r_theta) * n_halton_at_r, ncol = ncol(derivative_root_r[[name_i]]));
-          for (col_index in 1:ncol(no_insurance_prob_derivative$root_r[[name_i]])) {
-            no_insurance_prob_derivative$root_r[[name_i]][,col_index] = - dnorm((root_r - mean_vec)/sd_r)/sd_r * derivative_root_r[[name_i]][,col_index]/(denominator + 1e-20)
-          }
-        } else {
-          no_insurance_prob_derivative$root_r[[name_i]] =- dnorm((root_r - mean_vec)/sd_r)/sd_r * derivative_root_r[[name_i]]/(denominator + 1e-20);
-        }
-      }  
-
-      d_output = list(); 
-
-      d_output$beta_r = -colSums(apply(X_hh_theta_r[full_insurance_indicator,], 2, function(x) x * colMeans(matrix(full_insurance_prob * 2 * full_insurance_prob_derivative$mean, nrow = n_halton_at_r))[full_insurance_indicator])) - colSums(apply(X_hh_theta_r[no_insurance_indicator,], 2, function(x) x * colMeans(matrix(no_insurance_prob * 2 * no_insurance_prob_derivative$mean, nrow = n_halton_at_r))[no_insurance_indicator]))
-      d_output$sigma_r = -sum(colMeans(matrix(full_insurance_prob * 2 * full_insurance_prob_derivative$sd, nrow = n_halton_at_r))[full_insurance_indicator] * exp(x_transform[[1]]$sigma_r)) -sum(colMeans(matrix(no_insurance_prob * 2 * no_insurance_prob_derivative$sd, nrow = n_halton_at_r))[no_insurance_indicator] * exp(x_transform[[1]]$sigma_r)) 
-
-      for (name_i in c('beta_theta','beta_theta_ind', 'beta_gamma', 'beta_delta', 'beta_omega', 'sigma_thetabar', 'sigma_delta', 'sigma_omega', 'sigma_gamma', 'correlation')) {
-        if (grepl('beta',name_i)) {
-          d_output[[name_i]] = -colSums(apply(full_insurance_prob_derivative$root_r[[name_i]], 2, function(x) colMeans(matrix(full_insurance_prob * 2 * x, nrow = n_halton_at_r))[full_insurance_indicator])) -colSums(apply(no_insurance_prob_derivative$root_r[[name_i]], 2, function(x) colMeans(matrix(no_insurance_prob * 2 * x, nrow = n_halton_at_r))[no_insurance_indicator])) 
-        } else {
-          d_output[[name_i]] = -sum(colMeans(matrix(full_insurance_prob * 2 * full_insurance_prob_derivative$root_r[[name_i]], nrow = n_halton_at_r))[full_insurance_indicator]) - sum(colMeans(matrix(no_insurance_prob * 2 * no_insurance_prob_derivative$root_r[[name_i]], nrow = n_halton_at_r))[no_insurance_indicator])
-        }
-      }  
-    }
+    if (!silent) {
+      print(summary(realized_insurance_r))
+    } 
     
-    if (!(silent)) {
-      print(summary(colMeans(matrix(full_insurance_prob, nrow=n_halton_at_r))[relevant_index]))
-      print(summary(full_insurance_indicator[relevant_index]))
-      print(summary(colMeans(matrix(no_insurance_prob, nrow=n_halton_at_r))[relevant_index]))
-      print(summary(no_insurance_indicator[relevant_index]))
-    }
 
-    if (!(derivative)) {
-      if (is.nan(output) | is.infinite(output)) {
-        return(NA)
-      }
-      else {
-        return(output)
-      }
+    if (return_m) {
+      realized_insurance_m = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) {
+        expected_p = lapply(output_hh$realized_insurance_r, function(elem) sum(elem * exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))/sum(exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))) %>% unlist()
+        expected_m = colMeans(apply(output_hh$m, 2, function(x) x * expected_p))
+        return(expected_m)
+      }))
+    }
+    if (!(return_m)) {
+       output = - sum(log(realized_insurance_r + 1e-20)[relevant_index])   
     } else {
-      d_output_vec = rep(0, length(x_transform[[1]]))
-      for (name_i in names(d_output)) {
-        d_output_vec[x_transform[[2]][[name_i]]] = d_output[[name_i]]
-      }
-      d_output_vec[which(is.na(d_output_vec))] = 0 
-      if (is.nan(output) | is.infinite(output)) {
-        return(list(NA, d_output_vec))
-      }
-      else {
-        return(list(output, d_output_vec))
-      }
+      output = realized_insurance_m
     }
-
+    return(output)
   }
 
   index_r = x_transform[[2]][c('beta_r', 'sigma_r', 'correlation')] %>% unlist()
 
-  optim_r = splitfngr::optim_share(param_trial_here[index_r], function(x) {
+  optim_r = optim(param_trial_here[index_r], function(x) {
     x_with_new_r = param_trial_here; 
     x_with_new_r[index_r] = x; 
     output = fx_r(transform_param(x_with_new_r, return_index=TRUE), silent=TRUE, derivative=TRUE)
-    return(list(output[[1]], output[[2]][index_r]))
+    return(output)
   }, control=list(maxit=1e4), method='BFGS') 
 
   print('-------fit--------')
@@ -531,32 +451,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   x_transform = transform_param(param_trial_here,return_index=TRUE); 
   print('output of preference moments'); aggregate_moment_pref(x_transform, silent=FALSE) 
 
-  print(x_transform[[1]])
-  output_2 = lapply(moment_eligible_hh_output, function(output_hh) {
-      sd = exp(optim_r$par[length(optim_r$par)-1])
-      correlation = optim_r$par[length(optim_r$par)]
-      mean_vec = rep(X_hh_theta_r %*% optim_r$par[1:(length(optim_r$par)-2)], each = n_halton_at_r) + correlation * hh_theta
-      full_insurance_prob = (pnorm((5 - mean_vec)/sd) - pnorm((output_hh$root_r - mean_vec)/sd))/(pnorm((5 - mean_vec)/sd) - pnorm((0 - mean_vec)/sd))
-      full_insurance_prob[is.nan(full_insurance_prob)] = 1; 
-      no_insurance_prob = 1 - full_insurance_prob 
-      Em = list()
-      Em$full_insurance = colSums(apply(matrix(output_hh$m, nrow = n_draw_halton), 2, function(x) x * full_insurance_prob/(sum(full_insurance_prob) + 1e-20)))
-      Em$no_insurance = colSums(apply(matrix(output_hh$m, nrow = n_draw_halton), 2, function(x) x * no_insurance_prob/(sum(no_insurance_prob) + 1e-20)))
-      return(Em)
-    })
-
-  Em_full_insurance = do.call('c', lapply(output_2, function(x) x$full_insurance))
-  Em_no_insurance = do.call('c', lapply(output_2, function(x) x$no_insurance))
-
-  output_2 =  sum(((Em_full_insurance - mat_M_rtheta[,1]) * full_insurance_indicator_ind_level)^2 + ((Em_no_insurance - mat_M_rtheta[,1]) * no_insurance_indicator_ind_level)^2, na.rm=TRUE)
-
-  summary(Em_full_insurance * full_insurance_indicator_ind_level + Em_no_insurance * no_insurance_indicator_ind_level) %>% print
-  summary(mat_M_rtheta[,1]) %>% print
-
-  if (!(estimate_theta)) {
-    optim_pref_theta = list()
-    optim_pref_theta$value = 0 
-  }
+  output_2 =  sum((fx_r(transform_param(param_trial_here, return_index =TRUE), silent=FALSE, return_m = TRUE) - mat_M_rtheta[,1])^2)
 
   if (return_result) {
     return(param_trial_here)
@@ -564,15 +459,11 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     print(paste0('output_2 = ', output_2));
     print(paste0('optim_r$value = ', optim_r$value));
     print(paste0('optim_pref_theta$value = ', optim_pref_theta$value))
-    initial_param_trial <<- param_trial_here; 
     return(output_2 + optim_r$value/length(relevant_index) + optim_pref_theta$value) 
   }
   
 }
 
-param_trial = compute_inner_loop(-1, return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
-
-stop()
 
 estimate_r_thetabar = optimize(function(xs) {
   output = try(compute_inner_loop(xs))

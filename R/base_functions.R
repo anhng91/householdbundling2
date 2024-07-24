@@ -530,14 +530,16 @@ m_fun = function(input, income_effect=TRUE) {
 #' @param xi_parameters a list produced from optim
 #' @param short if TRUE, does not return dataframe of the original data
 #' @param derivative_r_threshold logical value, TRUE if want to compute the derivative of the r threshold w.r.t household and individual parameters. 
+#' @param n_simulation_r an integer for the number of Gauss Laguerre draws. 
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage. This does not take into account estimated preference parameters or unconditional distribution of health shocks. See `compute_expected_U_m` for the draws post-estimation of preference parameters and health shocks distribution.
 #' 
+#' @importFrom pracma gaussLaguerre
 #' @export
 #'
 #' @examples
 #' household_draw_theta_kappa_Rdraw(1, sample_data_and_parameter$param, 1000, 10, sick_parameters_sample, xi_parameters_sample)
-household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE) {
+household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, n_simulation_r = 100) {
 	set.seed(1);
 	tol = 1e-4;
 	data_hh_i = data_hh_list[[hh_index]]; 
@@ -582,6 +584,8 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 	income_vec = Income_net_premium[[hh_index]]
 	
 	R_draw = list()
+
+	r_draw = gaussLaguerre(n_simulation_r, 0);
 
 	if (data_hh_i$HHsize_s[1] == 0) {
 		s_thetabar = exp(param$sigma_thetabar); 
@@ -686,6 +690,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		}
 
 		derivative_root_r = list()
+		realized_outcome = list();
 		for (j in 1:n_draw_halton) {
 			# Full insurance: 
 			theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
@@ -726,282 +731,52 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 			U_uninsured = U(list(R_draw = income_vec[1] - rowSums(theta_draw), omega = omega[j], theta_draw = theta_draw, kappa_draw = kappa_draw_uninsured, gamma = gamma[j,], delta = delta[j,], HHsize = HHsize), income_effect) 
 
 			cara = function(x,r) {
-				if (r != 0) {
-					return(mean((1-exp(-r * x))/r, na.rm=TRUE))
+				if (length(r) > 1) {
+					return(lapply(r, function(ri) ifelse(ri == 0, mean(x, na.rm=TRUE), mean((1-exp(-r * x))/r, na.rm=TRUE))) %>% unlist())
 				} else {
-					return(mean(x, na.rm=TRUE))
-				}
-			}
-
-			if (income_vec[1 + length(elig_member_index)] < 0) {
-				root_r_vec[j] = 5;
-				prob_full_insured[j] = 0
-				if (derivative_r_threshold) {
-					derivative_root_r[[j]] = list()
-					for (name_i in c('theta_bar', 'gamma', 'delta')) {
-						derivative_root_r[[j]][[name_i]] = rep(0, HHsize)
-					} 
-					derivative_root_r[[j]][['omega']] = 0
-					derivative_root_r[[j]][['r']] = 1
-				}
-				
-
-			} else {
-				find_threshold_r = function(u_1, u_0) {
-					# u_1 is the option with more insurance coverage
-					output = list()
-
-					if (cara(u_1, 0) > cara(u_0, 0)) {
-						output$root_r_vec = 0;
-						output$prob_full_insured = 1;
-						output$derivative_r = list(); 
-					} else if (cara(u_1, 5) < cara(u_0, 5)) {
-						output$root_r_vec = 5; 
-						output$prob_full_insured = 0; 
+					if (r != 0) {
+						return(mean((1-exp(-r * x))/r, na.rm=TRUE))
 					} else {
-						output$root_r_vec = uniroot_usr(function(r) cara(u_1,r) - cara(u_0,r), c(0,5))$root
-						output$prob_full_insured = (pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(output$root_r_vec, mean = beta_r, sd = exp(param$sigma_r)))/(pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(0, mean = beta_r, sd = exp(param$sigma_r)))
+						return(mean(x, na.rm=TRUE))
 					}
-					return(output)
 				}
-
-				U_deviate = list()
-
-				if (data_hh_i$N_vol[1] == data_hh_i$HHsize_s[1]) {
-					for (i in elig_member_index) {
-							kappa_draw[[i + 1]] = kappa_draw[[1]]; 
-							kappa_draw[[i + 1]][,i] = 1;  
-							R_draw[[i+1]] =  income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[i+1]])	
-							U_deviate[[i]] = U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect)
-					}
-					threshold_r_output = lapply(U_deviate[elig_member_index], function(U_deviate_i) find_threshold_r(U_full_insurance, U_deviate_i))
-				} else {
-					for (i in elig_member_index) {
-						kappa_draw[[i + 1]] = kappa_draw[[1]]; 
-						kappa_draw[[i + 1]][,setdiff(elig_member_index,i)] = 1;  
-
-						R_draw[[i+1]] =  income_vec[2] - rowSums(theta_draw * kappa_draw[[i+1]])	
-						U_deviate[[i]] = U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect)
-
-					}
-					threshold_r_output = lapply(U_deviate[elig_member_index], function(U_deviate_i) find_threshold_r(U_deviate_i, U_uninsured))
-					unlist_threshold_r = lapply(threshold_r_output, function(x) x$prob_full_insured) %>% unlist
-					# print('unlist_threshold_r');
-					# print(unlist_threshold_r)
-					# if (max(unlist_threshold_r, na.rm=TRUE) == 1) {
-					# 	i = which(unlist_threshold_r == 1); 
-					# 	print(U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect, diagnosis=TRUE) %>% summary)
-					# 	print(U(list(R_draw = income_vec[1] - rowSums(theta_draw), omega = omega[j], theta_draw = theta_draw, kappa_draw = kappa_draw[[1]] * 0 + 1, gamma = gamma[j,], delta = delta[j,], HHsize = HHsize), income_effect, diagnosis=TRUE) %>% summary)
-					# }
-				}
-
-				if (data_hh_i$N_vol[1] == data_hh_i$HHsize_s[1]) {
-					root_r_vec[j] = max(lapply(threshold_r_output, function(x) x$root_r_vec) %>% unlist(), na.rm=TRUE)
-					prob_full_insured[j] = min(lapply(threshold_r_output, function(x) x$prob_full_insured) %>% unlist(), na.rm=TRUE)
-
-					if (derivative_r_threshold) {
-						where_root_r_achieved = elig_member_index[which.max(lapply(threshold_r_output, function(x) x$root_r_vec) %>% unlist())]
-
-						# compute derivative:
-						derivative_root_r[[j]] = list();
-						if (root_r_vec[j] == 0 | root_r_vec[j] == 5) {
-							for (name_i in c('theta_bar', 'gamma', 'delta')) {
-								derivative_root_r[[j]][[name_i]] = rep(0, HHsize)
-							} 
-							derivative_root_r[[j]][['omega']] = 0
-							derivative_root_r[[j]][['r']] = 1
-						} else {
-							derivative_root_r[[j]][['theta_bar']] = rep(0, HHsize)
-							
-							draw_theta = function(theta_bar_draw) {
-								theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-									output = qnorm(x * pnorm(-theta_bar_draw/s_theta) + (1 - x)) * s_theta + theta_bar_draw 
-									output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
-									return(output)
-								})), ncol=HHsize) * halton_mat_list$sick
-
-								theta_draw = matrix(apply(theta_draw, 2, function(x) {
-									x[which(is.na(x) | is.infinite(x))] = 0
-									return(x)
-								}), ncol=HHsize)
-
-								kappa_draw_optimal = kappa_draw[[1]]
-								for (i in 1:HHsize) {
-									kappa_draw_optimal[,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j,i]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws[,i] + 1 - random_xi_draws[,i]
-								}
-								kappa_draw_deviate = kappa_draw_optimal; 
-								kappa_draw_deviate[, where_root_r_achieved] = 1; 
-								return(list(theta_draw = theta_draw, kappa_draw_optimal = kappa_draw_optimal, kappa_draw_deviate = kappa_draw_deviate))
-							}
-
-							cara_U_root = cara(U_full_insurance, root_r_vec[j]) - cara(U_deviate[[where_root_r_achieved]], root_r_vec[j]);
-
-							derivative_root_r[[j]][['r']] = (cara(U_full_insurance, root_r_vec[j] + tol) - cara(U_deviate[[where_root_r_achieved]], root_r_vec[j] + tol) - cara_U_root)/tol;
-
-							for (i in 1:HHsize) {
-								theta_bar_i = theta_bar[j,i];
-								theta_bar_i[i] = theta_bar_i[i] + tol;
-								theta_draw_i = draw_theta(theta_bar_i);
-								cara_U_i = cara(U(list(R_draw = income_vec[length(elig_member_index) + 1] - rowSums(theta_draw_i$theta_draw * theta_draw_i$kappa_draw_optimal), omega = omega[j], theta_draw = theta_draw_i$theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = theta_draw_i$kappa_draw_optimal),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw_i$theta_draw * theta_draw_i$kappa_draw_deviate), omega = omega[j], theta_draw = theta_draw_i$theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = theta_draw_i$kappa_draw_deviate),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['theta_bar']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-							for (i in 1:HHsize) {
-								gamma_i = gamma[j,];
-								gamma_i[i]= gamma_i[i] + tol;
-								cara_U_i = cara(U(list(R_draw = income_vec[length(elig_member_index) + 1] - rowSums(theta_draw * kappa_draw[[1]]), omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma_i, HHsize = HHsize, kappa_draw = kappa_draw[[1]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[where_root_r_achieved + 1]]), omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma_i , HHsize = HHsize, kappa_draw = kappa_draw[[where_root_r_achieved + 1]]),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['gamma']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-							for (i in 1:HHsize) {
-								delta_i = delta[j,];
-								delta_i[i]= delta_i[i] + tol;
-
-								cara_U_i = cara(U(list(R_draw = income_vec[length(elig_member_index) + 1] - rowSums(theta_draw * kappa_draw[[1]]), omega = omega[j], theta_draw = theta_draw, delta = delta_i, gamma = gamma[j,], HHsize = HHsize, kappa_draw = kappa_draw[[1]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[where_root_r_achieved + 1]]), omega = omega[j], theta_draw = theta_draw, delta = delta_i, gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[where_root_r_achieved + 1]]),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['delta']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-						
-								
-							cara_U_i = cara(U(list(R_draw = income_vec[length(elig_member_index) + 1] - rowSums(theta_draw * kappa_draw[[1]]), omega = omega[j] + tol, theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,], HHsize = HHsize, kappa_draw = kappa_draw[[1]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[where_root_r_achieved + 1]]), omega = omega[j] + tol, theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[where_root_r_achieved + 1]]),income_effect), root_r_vec[j])
-							derivative_root_r[[j]][['omega']] = (cara_U_i - cara_U_root)/tol;
-							
-						}
-					}
-
-				} else {
-					root_r_vec[j] = min(lapply(threshold_r_output, function(x) x$root_r_vec) %>% unlist(), na.rm=TRUE)
-					prob_full_insured[j] = max(lapply(threshold_r_output, function(x) x$prob_full_insured) %>% unlist(), na.rm=TRUE)
-				
-
-					if (derivative_r_threshold) {
-						where_root_r_achieved = elig_member_index[which.min(lapply(threshold_r_output, function(x) x$root_r_vec) %>% unlist())]
-
-						# compute derivative:
-						derivative_root_r[[j]] = list();
-						if (root_r_vec[j] == 0 | root_r_vec[j] == 5) {
-							for (name_i in c('theta_bar', 'gamma', 'delta')) {
-								derivative_root_r[[j]][[name_i]] = rep(0, HHsize)
-							} 
-							derivative_root_r[[j]][['omega']] = 0
-							derivative_root_r[[j]][['r']] = 1
-						} else {
-							derivative_root_r[[j]][['theta_bar']] = rep(0, HHsize)
-							 
-							draw_theta = function(theta_bar_draw) {
-								theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-									output = qnorm(x * pnorm(-theta_bar_draw/s_theta) + (1 - x)) * s_theta + theta_bar_draw 
-									output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
-									return(output)
-								})), ncol=HHsize) * halton_mat_list$sick
-
-								theta_draw = matrix(apply(theta_draw, 2, function(x) {
-									x[which(is.na(x) | is.infinite(x))] = 0
-									return(x)
-								}), ncol=HHsize)
-
-								
-								kappa_draw_deviate = kappa_draw[[where_root_r_achieved + 1]]
-								
-								kappa_draw_optimal = kappa_draw_uninsured; 
-								kappa_draw_deviate[, where_root_r_achieved] = 1; 
-								return(list(theta_draw = theta_draw, kappa_draw_optimal = kappa_draw_optimal, kappa_draw_deviate = kappa_draw_deviate))
-							}
-
-							cara_U_root = cara(U_deviate[[where_root_r_achieved]], root_r_vec[j]) - cara(U_uninsured, root_r_vec[j]);
-
-							derivative_root_r[[j]][['r']] = (cara(U_full_insurance, root_r_vec[j] + tol) - cara(U_deviate[[where_root_r_achieved]], root_r_vec[j] + tol) - cara_U_root)/tol;
-
-							for (i in 1:HHsize) {
-								theta_bar_i = theta_bar[j,i];
-								theta_bar_i[i] = theta_bar_i[i] + tol;
-								theta_draw_i = draw_theta(theta_bar_i);
-								cara_U_i = cara(U(list(R_draw = income_vec[2] - rowSums(theta_draw_i$theta_draw * theta_draw_i$kappa_draw_optimal), omega = omega[j], theta_draw = theta_draw_i$theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = theta_draw_i$kappa_draw_optimal),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw_i$theta_draw * theta_draw_i$kappa_draw_deviate), omega = omega[j], theta_draw = theta_draw_i$theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = theta_draw_i$kappa_draw_deviate),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['theta_bar']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-							for (i in 1:HHsize) {
-								gamma_i = gamma[j,];
-								gamma_i[i]= gamma_i[i] + tol;
-								cara_U_i = cara(U(list(R_draw = income_vec[2] - rowSums(theta_draw * kappa_draw[[1 + where_root_r_achieved]]), omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma_i, HHsize = HHsize, kappa_draw = kappa_draw[[1 + where_root_r_achieved]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw_uninsured), omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma_i , HHsize = HHsize, kappa_draw = kappa_draw_uninsured),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['gamma']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-							for (i in 1:HHsize) {
-								delta_i = delta[j,];
-								delta_i[i]= delta_i[i] + tol;
-								cara_U_i = cara(U(list(R_draw = income_vec[2] - rowSums(theta_draw * kappa_draw[[1 + where_root_r_achieved]]), omega = omega[j], theta_draw = theta_draw, delta = delta_i, gamma = gamma[j,], HHsize = HHsize, kappa_draw = kappa_draw[[1 + where_root_r_achieved]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw_uninsured), omega = omega[j], theta_draw = theta_draw, delta = delta_i, gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw_uninsured),income_effect), root_r_vec[j])
-								derivative_root_r[[j]][['delta']][i] = (cara_U_i - cara_U_root)/tol;
-							}
-
-						
-								
-							cara_U_i = cara(U(list(R_draw = income_vec[2] - rowSums(theta_draw * kappa_draw[[1 + where_root_r_achieved]]), omega = omega[j] + tol, theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,], HHsize = HHsize, kappa_draw = kappa_draw[[1 + where_root_r_achieved]]),income_effect), root_r_vec[j]) - cara(U(list(R_draw = income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw_uninsured), omega = omega[j] + tol, theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw_uninsured),income_effect), root_r_vec[j])
-							derivative_root_r[[j]][['omega']] = (cara_U_i - cara_U_root)/tol;
-
-						}
-					}
-				}	
-
-
 			}
 
-			# U_drop = list()
+			loop_index = 0; 
+			U_deviate = list()
+			if (data_hh_i$N_vol[1] == data_hh_i$HHsize_s[1]) {
+				for (i in elig_member_index) {
+					kappa_draw[[i + 1]] = kappa_draw[[1]]; 
+					kappa_draw[[i + 1]][,i] = 1;  
+					R_draw[[i+1]] =  income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[i+1]])	
+					U_deviate[[i]] = U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect)
+					if (loop_index == 0) {
+						realized_insurance_r = lapply(r_draw, function(r) cara(U_full_insurance,r) >= cara(U_deviate[[i]], r)) %>% unlist()
+					} else {
+						realized_insurance_r = realized_insurance_r * (lapply(r_draw, function(r) cara(U_full_insurance,r) >= cara(U_deviate[[i]], r)) %>% unlist())
+					}
+				}
+			} else {
+				for (i in elig_member_index) {
+					kappa_draw[[i + 1]] = kappa_draw[[1]]; 
+					kappa_draw[[i + 1]][,setdiff(elig_member_index,i)] = 1;  
 
-			# root_r = NULL				
-
-			# if (income_vec[1 + length(elig_member_index)] < 0) {
-			# 	root_r_vec[j] = Inf 
-			# 	prob_full_insured[j] = 0
-			# } else {
-			# 	for (i in elig_member_index) {
-			# 		kappa_draw[[i + 1]] = kappa_draw[[1]]; 
-			# 		kappa_draw[[i + 1]][,i] = 1;  
-
-			# 		R_draw[[i+1]] =  income_vec[length(elig_member_index)] - rowSums(theta_draw * kappa_draw[[i+1]])	
-
-			# 		U_drop[[i + 1]] = U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect)
-
-			# 		fr = function(r) {
-			# 			if (r != 0) {
-			# 				return((mean((1 - exp(-r * U_full_insurance))/r) - mean((1 - exp(-r * U_drop[[i+1]]))/r))^2)
-			# 			} else if (r == 0) {
-			# 				return((mean(U_full_insurance) - mean(U_drop[[i + 1]]))^2)
-			# 			}
-			# 		}
-
-
-			# 		if (mean(U_full_insurance) > mean(U_drop[[i + 1]])) {
-			# 			root_r[i] = 0; 
-			# 		} else {
-			# 			r_max = qnorm(0.999) * exp(param$sigma_r) + beta_r; 
-			# 			if (r_max > 0) {
-			# 				r_max = ifelse(r_max < 0, 0, r_max)
-			# 				if (mean(-exp(-r_max * U_full_insurance)/r_max) < mean(-exp(-r_max * U_drop[[i + 1]])/r_max)) {
-			# 					root_r[i] = r_max; 
-			# 				} else {
-			# 					root_r_optimize = optimize(fr, c(0,r_max))
-			# 					root_r[i] = root_r_optimize$minimum
-			# 				}
-			# 			}
-			# 			else {
-			# 				root_r[i] = 0
-			# 			}
-			# 		}
-			# 	}
-			# 	root_r_vec[j] = max(root_r, na.rm=TRUE)
-			# 	prob_full_insured[j] = 1 - pnorm(root_r_vec[j], mean = X_hh %*% param$beta_r, sd = exp(param$sigma_r))
-			# }
-			
+					R_draw[[i+1]] =  income_vec[2] - rowSums(theta_draw * kappa_draw[[i+1]])	
+					U_deviate[[i]] = U(list(R_draw = R_draw[[i + 1]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw[[i + 1]]),income_effect)
+					if (loop_index == 0) {
+						realized_insurance_r = lapply(r_draw, function(r) cara(U_full_insurance,r) >= cara(U_deviate[[i]], r)) %>% unlist()
+					} else {
+						realized_insurance_r = realized_insurance_r * (lapply(r_draw, function(r) cara(U_uninsured,r) >= cara(U_deviate[[i]], r)) %>% unlist())
+					}
+				}
+			}
+			realized_outcome[[j]] = realized_insurance_r			
 		}
 	}
 
 
 	if (data_hh_i$HHsize_s[1] > 0) {
 		output = list(); 
-		output$Em = colMeans(apply(m, 2, function(x) x * prob_full_insured/sum(prob_full_insured)))
-		output$Prob_full = mean(prob_full_insured)
-		output$root_r = root_r_vec
 		output$hh_theta = halton_mat_list$household_random_factor 
 		output$m = m
 		output$X_hh = var_hh(data_hh_i)
@@ -1009,16 +784,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		output$X_ind = var_ind(data_hh_i); 
 		output$X_ind_year = cbind(output$X_ind, data_hh_i$Year[1] == 2004, data_hh_i$Year[1] == 2006, data_hh_i$Year[1] == 2010, data_hh_i$Year[1] == 2012); 
 		output$X_hh = var_hh(data_hh_i);
-		if (derivative_r_threshold) {
-			output$derivative_root_r = list()
-			output$derivative_root_r[['omega']] = - do.call('c', lapply(derivative_root_r, function(x) x[['omega']]))/do.call('c', lapply(derivative_root_r, function(x) x[['r']]))
-			for (name_i in c('theta_bar', 'delta', 'gamma')) {
-				output$derivative_root_r[[name_i]] = - do.call('c', lapply(derivative_root_r, function(x) x[[name_i]]))/do.call('c', lapply(derivative_root_r, function(x) rep(x[['r']], HHsize))); 
-			}
-			output$omega_draw = (omega - beta_omega)/s_omega * (omega > 0)
-			output$gamma_draw = matrix(t(apply(gamma, 1, function(x) (x - beta_gamma)/s_gamma * (x > 0) )), ncol = HHsize)
-			output$delta_draw = matrix(t(apply(delta, 1, function(x) (x - beta_delta)/s_delta * (x > 0) )), ncol = HHsize)
-		}
+		output$realized_insurance_r = realized_outcome;
 	} else {
 		output = list(); 
 		output$R_draw = R_draw; 
