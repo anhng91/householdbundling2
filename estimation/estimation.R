@@ -409,7 +409,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     sd_r = exp(x_transform[[1]]$sigma_r);
     realized_insurance_r = do.call('c',lapply(moment_eligible_hh_output, function(output_hh) {
       mean_r =  output_hh$X_hh %*% x_transform[[1]]$beta_r 
-      expected_p = lapply(output_hh$realized_insurance_r, function(elem) sum(elem * exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))/sum(exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * exp(Gauss_laguerre_draws$w))) %>% unlist()
+      expected_p = lapply(output_hh$realized_insurance_r, function(elem) sum(elem * exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * Gauss_laguerre_draws$w)/sum(exp(Gauss_laguerre_draws$x) * exp(-0.5 * (Gauss_laguerre_draws$x - mean_r)/sd_r + Gauss_laguerre_draws$x) * Gauss_laguerre_draws$w)) %>% unlist()
       expected_p = mean(expected_p)
       return(expected_p)
     }))
