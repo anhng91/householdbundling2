@@ -3,9 +3,9 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 2;
+    numcores = 4;
   }
-  job_index = 1232;  
+  job_index = 2;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -29,7 +29,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-# devtools::install(upgrade='never')
+devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
@@ -94,9 +94,9 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 200, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, 100, replace=TRUE)
-  sample_identify_theta = sample(sample_identify_theta, 100, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 1000, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
+  sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
 
 
