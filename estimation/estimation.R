@@ -563,8 +563,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   } else {
     print(paste0('output_2 = ', output_2));
     print(paste0('optim_r$value = ', optim_r$value));
-    print(paste0('optim_pref_theta$value = ', optim_pref_theta$value))
-    initial_param_trial <<- param_trial_here; 
+    print(paste0('optim_pref_theta$value = ', optim_pref_theta$value)) 
     return(output_2 + optim_r$value/length(relevant_index) + optim_pref_theta$value) 
   }
   
