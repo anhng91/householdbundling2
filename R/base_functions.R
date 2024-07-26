@@ -13,7 +13,7 @@
 mean_E_XW = function(mu, sigma, X) {
 	output = exp(1/2 * (sigma^2 * (log(X))^2 + 2 * mu * log(X))) * (1 - pnorm((-mu - sigma^2 * log(X))/sigma))/(1 - pnorm(-mu/sigma));
 	output[which(X == 0)] = 0 
-	output[which(is.nan(output))] = 0;
+	output[which(is.nan(output)|is.infinite(output))] = 0;
 	return(output)
 }
 
@@ -42,9 +42,9 @@ d_mean_E_XW = function(mu, sigma, X) {
 	d_output$sigma[which(X == 0)] = 0; 
 	d_output$X[which(X == 0)] = 0; 
 
-	d_output$mu[which(is.nan(d_output$mu))] = 0;
-	d_output$sigma[which(is.nan(d_output$sigma))] = 0;
-	d_output$X[which(is.nan(d_output$X))] = 0;
+	d_output$mu[which(is.nan(d_output$mu) | is.infinite(d_output$mu))] = 0;
+	d_output$sigma[which(is.nan(d_output$sigma) | is.infinite(d_output$sigma))] = 0;
+	d_output$X[which(is.nan(d_output$X) | is.infinite(d_output$X))] = 0;
 
 	return(d_output)
 }
@@ -94,7 +94,7 @@ d_truncated_normal_mean = function(mu, sigma) {
  
  
 	if (is.infinite(output) | is.nan(output)) {
-		return(list(mu = NA, sigma = NA))
+		return(list(mu = 0, sigma = 0))
 	} else if (output < 0) {
 		return(list(mu = 0, sigma = 0))
 	} else {
@@ -117,7 +117,7 @@ truncated_normal_variance = function(mu, sigma) {
 	Z = (1 - pnorm(0, mean=mu, sd=sigma))
 	output = sigma^2 * (1 + (0 - mu)/sigma * dnorm(0, mean=mu, sd=sigma)/Z - (dnorm(0, mean=mu, sd=sigma))^2/Z^2)
 	if (is.infinite(output) | is.nan(output)) {
-		return(NA)
+		return(0)
 	} else if (output < 0) {
 		return(0)
 	} else {
