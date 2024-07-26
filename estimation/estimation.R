@@ -378,7 +378,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
       output[[1]] = pref_moment[[1]] * length(sample_identify_pref) + output_theta[[1]] 
       output[[2]] = pref_derivative[active_index] * length(sample_identify_pref) + output_theta[[2]][active_index] 
       return(output)
-    }, control=list(maxit=1e2), method='BFGS')
+    }, control=list(maxit=1e3), method='BFGS')
 
     param_trial_here[active_index] = optim_pref_theta$par
   }
@@ -575,19 +575,12 @@ param_trial = compute_inner_loop(-1, return_result=TRUE, estimate_theta=TRUE, es
 stop()
 
 estimate_r_thetabar = optimize(function(xs) {
-  output = try(compute_inner_loop(xs))
-  if ('try-error' %in% class(output)) {
-    return(Inf)
-  } else {
-    if (is.na(output)) {
-      return(Inf)
-    }
-    return(output)
-  }
-}, c(-2,0)) 
+  output = compute_inner_loop(log(xs))
+  return(output)
+}, c(1e-3,1)) 
 
 
-param_trial = compute_inner_loop(estimate_r_thetabar$minimum, return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
+param_trial = compute_inner_loop(log(estimate_r_thetabar$minimum), return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
 
 message('computing final param_trial')
 
@@ -599,13 +592,13 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 500)
+fit_sample = sample(Vol_HH_list_index, 1000)
 
 for (seed_number in c(1:10)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('transform_param_final', 'param','counterfactual_household_draw_theta_kappa_Rdraw'))
     mini_fit_values = parLapply(cl, c(fit_sample), function(id) {
-      output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_halton_at_r, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x)
+      output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x)
       output = as.data.frame(output)
       output$Y = data_hh_list[[id]]$Income; 
       output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -615,7 +608,7 @@ for (seed_number in c(1:10)) {
     })
   } else {
     mini_fit_values = mclapply(c(fit_sample), function(id) {
-    output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_halton_at_r, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x), error=function(e) e)
+    output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x), error=function(e) e)
     output = as.data.frame(output)
     output$Y = data_hh_list[[id]]$Income; 
     output$m_observed = data_hh_list[[id]]$M_expense; 
