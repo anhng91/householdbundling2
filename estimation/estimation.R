@@ -570,10 +570,6 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   
 }
 
-param_trial = compute_inner_loop(-1, return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
-
-stop()
-
 estimate_r_thetabar = optimize(function(xs) {
   output = compute_inner_loop(log(xs))
   return(output)
