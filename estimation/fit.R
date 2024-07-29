@@ -64,7 +64,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
   clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index'))
 }
 	
-job_index_list = c(1232)
+job_index_list = c(1:100)
 
 iter_list = c(1:5)
 
@@ -187,6 +187,10 @@ observed_data$Y2 <- as.numeric(Hmisc::cut2(observed_data$Income, g=5))
 fit_values = fit_values %>% mutate_at(c('m_observed', 'average_theta', 'wtp', 'cost_to_insurance', 'Y', 'm', 'optional_care', 'wtp_uni', 
 	'wtp_2', 'subs_effect'), function(x) x * unit_inc)
 observed_data = observed_data %>% mutate_at(c('M_expense', 'Income'), function(x) x * unit_inc)
+
+if (!(dir.exists('../../Obj_for_manuscript/'))) {
+	dir.create('../../Obj_for_manuscript/')
+}
 
 saveRDS(fit_values, file='../../Obj_for_manuscript/fit_values.rds')
 saveRDS(observed_data, file='../../Obj_for_manuscript/observed_data.rds')
