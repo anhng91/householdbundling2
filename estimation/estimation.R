@@ -94,9 +94,9 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 1000, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
-  sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 200, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, 200, replace=TRUE)
+  sample_identify_theta = sample(sample_identify_theta, 200, replace=TRUE)
 }
 
 
@@ -218,6 +218,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   var_list = c('beta_omega','beta_delta', 'beta_gamma', 'sigma_delta', 'sigma_gamma', 'sigma_omega')
   x_transform = transform_param(param_trial_here, return_index=TRUE)
 
+
   aggregate_moment_pref = function(x_transform, silent=TRUE) {
     if (Sys.info()[['sysname']] == 'Windows') {
       clusterExport(cl, c('x_transform', 'n_halton_at_r'),envir=environment())
@@ -256,6 +257,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     #   }
     # }
     output_2 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[2]]))
+
     d_output_1 = list();
     d_output_2 = list();
     for (varname in var_list) {
@@ -280,29 +282,27 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     for (moment_index in c(1:nrow(mat_YK))) {
       output[[3]][[moment_index]] = ((output_1 - mat_M[,1]) * mat_YK[moment_index,])^2
       moment[moment_index] = mean(output[[3]][[moment_index]]); 
-      d_moment[[moment_index]] = 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]);
+      d_moment[[moment_index]] = 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]^2);
     }
     for (moment_index in c(1:nrow(mat_YK))) {
       output[[3]][[moment_index + nrow(mat_YK)]] = ((output_2 - mat_M[,2]) * mat_YK[moment_index,])^2
       moment[moment_index + nrow(mat_YK)] = mean(output[[3]][[moment_index + nrow(mat_YK)]]); 
-      d_moment[[moment_index + nrow(mat_YK)]] = 2*((output_2 - mat_M[,2]) * mat_YK[moment_index,]);
+      d_moment[[moment_index + nrow(mat_YK)]] = 2*((output_2 - mat_M[,2]) * mat_YK[moment_index,]^2);
     }
 
     d_moment = do.call('cbind', d_moment)
 
     output[[1]] = sum(moment); 
-    active_index_pref = x_transform[[2]][var_list] %>% unlist()
-    output[[2]] = rep(0, length(active_index_pref)); 
+    output[[2]] = rep(0, length(initial_param_trial)); 
 
     output[[2]][x_transform[[2]][['beta_delta']]] = apply(d_output_1[['beta_delta']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_delta']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
     output[[2]][x_transform[[2]][['beta_omega']]] = apply(d_output_1[['beta_omega']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_omega']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
     output[[2]][x_transform[[2]][['beta_gamma']]] = apply(d_output_1[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
 
-    output[[2]][x_transform[[2]][['sigma_delta']]] =  sum((d_output_1[['sigma_delta']] %*% d_moment[,1:nrow(mat_YK)])/length(active_index)) + sum((d_output_2[['sigma_delta']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(active_index))
-    output[[2]][x_transform[[2]][['sigma_gamma']]] =  sum((d_output_1[['sigma_gamma']] %*% d_moment[,1:nrow(mat_YK)])/length(active_index)) + sum((d_output_2[['sigma_gamma']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(active_index))
-    output[[2]][x_transform[[2]][['sigma_omega']]] =  sum((d_output_1[['sigma_omega']] %*% d_moment[,1:nrow(mat_YK)])/length(active_index)) + sum((d_output_2[['sigma_omega']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(active_index))
+    output[[2]][x_transform[[2]][['sigma_delta']]] =  sum((d_output_1[['sigma_delta']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_delta']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
+    output[[2]][x_transform[[2]][['sigma_gamma']]] =  sum((d_output_1[['sigma_gamma']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_gamma']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
+    output[[2]][x_transform[[2]][['sigma_omega']]] =  sum((d_output_1[['sigma_omega']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_omega']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK))
 
-    output[[2]] = output[[2]][active_index_pref]
     output[[3]] = do.call('cbind', output[[3]])
     output[[4]] = abs(mean(output_1) - mean(mat_M[,1]))
     return(output)
@@ -356,20 +356,22 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
         return(list(NA, rep(NA, length(active_index))))
       }
       pref_moment = aggregate_moment_pref(transform_param(param_trial_inner_theta, return_index=TRUE))
-      deriv_theta_index = c(x_transform[[2]]$beta_theta[1], x_transform[[2]]$beta_theta_ind[1], x_transform[[2]]$sigma_thetabar)
+      list_theta_var = c('beta_theta', 'beta_theta_ind', 'sigma_thetabar')
+
+      
       if (is.na(pref_moment[[1]]) | any(is.nan(pref_moment[[2]]))) {
         return(list(NA, rep(NA, length(x_pref_theta))))
       }
 
-      pref_derivative = rep(0, length(param_trial_here));
-      pref_derivative[x_transform[[2]][var_list] %>% unlist()] = pref_moment[[2]]
-      for (i in deriv_theta_index) {
+      pref_derivative = pref_moment[[2]]
+      for (name_i in list_theta_var) {
+        i = x_transform[[2]][[name_i]][1]
         param_trial_i = param_trial_inner_theta; param_trial_i[i] = param_trial_inner_theta[i] + tol
         fi = aggregate_moment_pref(transform_param(param_trial_i, return_index=TRUE), silent=TRUE)
-        if (i == deriv_theta_index[1]) {
-          pref_derivative[i] = (rowMeans((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref_with_year)/nrow(X_ind_pref)
-        } else if (i == deriv_theta_index[2]) {
-          pref_derivative[i] = (rowMeans((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref)/nrow(X_ind_pref)
+        if (name_i == 'beta_theta']) {
+          pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref_with_year)/nrow(X_ind_pref)
+        } else if (name_i == 'beta_theta_ind') {
+          pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref)/nrow(X_ind_pref)
         } else {
           pref_derivative[i] = (fi[[1]] - pref_moment[[1]])/tol
         }
@@ -382,6 +384,8 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
 
     param_trial_here[active_index] = optim_pref_theta$par
   }
+
+  print('optim_pref_theta = '); print(optim_pref_theta)
   
   active_index = c(x_transform[[2]]$sigma_r,  x_transform[[2]]$sigma_theta, x_transform[[2]]$beta_r); 
 
@@ -587,7 +591,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 1000)
+fit_sample = sample(Vol_HH_list_index, 2000)
 
 for (seed_number in c(1:10)) {
   if (Sys.info()[['sysname']] == 'Windows') {
