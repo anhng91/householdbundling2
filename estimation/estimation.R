@@ -348,9 +348,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
       param_trial_inner_theta = param_trial_here
       param_trial_inner_theta[active_index] = x_pref_theta 
       x_transform = transform_param(param_trial_inner_theta, return_index = TRUE)
-      if (max(abs(x_pref_theta)) > 4) {
-        return(list(NA, rep(NA, length(active_index))))
-      }
+
       output_theta = aggregate_moment_theta(x_transform)
       if (is.nan(output_theta[[1]])) {
         return(list(NA, rep(NA, length(active_index))))

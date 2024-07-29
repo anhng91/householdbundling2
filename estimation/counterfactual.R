@@ -79,7 +79,9 @@ if (Sys.info()[['sysname']] == 'Windows') {
   clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index'))
 }
 
-for (job_index in 1232:1232) {
+job_index_list = c(1:100)
+
+for (job_index in job_index_list) {
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		param_final$other = init_param
@@ -136,6 +138,7 @@ for (job_index in 1232:1232) {
 					output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 					output$id = id
 					output$premium_optimal = income_vec[1] - income_vec[sum(output$vol_sts_counterfactual) + 1]
+					return(output)
 					}))
 				return(output)}, mc.cores=numcores)
 			counterfactual_values = do.call('rbind', counterfactual_values) %>% filter(Com_sts + Bef_sts + Std_w_ins == 0)
@@ -157,6 +160,7 @@ for (job_index in 1232:1232) {
 				output$id = id
 				output$premium_optimal = income_vec[1] - income_vec[sum(output$vol_sts_counterfactual) + 1]
 				output$iter = iter; 
+				return(output)
 				}))	
 				return(output)}, mc.cores=numcores)
 			counterfactual_values = do.call('rbind', counterfactual_values) %>% filter(Com_sts + Bef_sts + Std_w_ins == 0)
