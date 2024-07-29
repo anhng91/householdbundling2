@@ -94,9 +94,9 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 200, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, 200, replace=TRUE)
-  sample_identify_theta = sample(sample_identify_theta, 200, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 2000, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
+  sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
 
 
@@ -368,7 +368,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
         i = x_transform[[2]][[name_i]][1]
         param_trial_i = param_trial_inner_theta; param_trial_i[i] = param_trial_inner_theta[i] + tol
         fi = aggregate_moment_pref(transform_param(param_trial_i, return_index=TRUE), silent=TRUE)
-        if (name_i == 'beta_theta']) {
+        if (name_i == 'beta_theta') {
           pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref_with_year)/nrow(X_ind_pref)
         } else if (name_i == 'beta_theta_ind') {
           pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref)/nrow(X_ind_pref)
@@ -591,7 +591,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 2000)
+fit_sample = sample(Vol_HH_list_index, 1000)
 
 for (seed_number in c(1:10)) {
   if (Sys.info()[['sysname']] == 'Windows') {
@@ -629,9 +629,9 @@ fit_values = as.data.frame(fit_values)
 
 observed_data_voluntary = as.data.frame(observed_data_voluntary)
 
-predicted_data_summary = fit_values %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% mutate(Y2 = as.numeric(Hmisc::cut2(Y, g=5))) %>% group_by(Y2) %>% summarise(mean_Vol_sts = mean(vol_sts_counterfactual), mean_m = mean(m, na.rm=TRUE))
+predicted_data_summary = fit_values  %>% mutate(Y2 = as.numeric(Hmisc::cut2(Y, g=5))) %>% group_by(Y2) %>% summarise(mean_Vol_sts = mean(vol_sts_counterfactual), mean_m = mean(m, na.rm=TRUE))
 predicted_data_summary$type = 'predicted'
-actual_data_summary = observed_data_voluntary %>% filter(Com_sts + Bef_sts + Std_w_ins == 0)%>% mutate(Y2 = as.numeric(Hmisc::cut2(Income, g=5))) %>% group_by(Y2) %>% summarise(mean_Vol_sts = mean(Vol_sts), mean_m = mean(M_expense, na.rm=TRUE))
+actual_data_summary = observed_data_voluntary %>% mutate(Y2 = as.numeric(Hmisc::cut2(Income, g=5))) %>% group_by(Y2) %>% summarise(mean_Vol_sts = mean(Vol_sts), mean_m = mean(M_expense, na.rm=TRUE))
 actual_data_summary$type = 'actual'
 
 plot_1 = ggplot(data = rbind(predicted_data_summary, actual_data_summary), aes(x = Y2, y = mean_Vol_sts, color=type)) + geom_line() 
