@@ -66,7 +66,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 	
 job_index_list = c(1:100)
 
-iter_list = c(1:5)
+iter_list = c(1:10)
 
 for (job_index in job_index_list) {
 	print(paste0('computing at index = ', job_index))
