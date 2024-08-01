@@ -3,9 +3,9 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 4;
+    numcores = 8;
   }
-  job_index = 2;  
+  job_index = 3;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -200,8 +200,9 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-# initial_param_trial = init_param
-initial_param_trial = rep(0, length(init_param))
+initial_param_trial = init_param
+# initial_param_trial = rep(0, length(init_param))
+# initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
 # initial_param_trial[[x_transform[[2]]$beta_delta[1]]] = 0.1
 # initial_param_trial[[x_transform[[2]]$beta_theta_ind[1]]] = 1
 # initial_param_trial[[x_transform[[2]]$beta_theta[1]]] = -3
@@ -210,6 +211,8 @@ initial_param_trial = rep(0, length(init_param))
 # initial_param_trial[[x_transform[[2]]$beta_omega[1]]] = 0.5
 # initial_param_trial[[x_transform[[2]]$sigma_thetabar[1]]] = 1
 
+iteration = 1;
+save_output = list()
 compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE, estimate_pref=TRUE) {
   print(paste0('sigma_theta value is', x_stheta))
   param_trial_here = initial_param_trial
@@ -227,13 +230,13 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
         return(output)
       })
       mat_YK = do.call('cbind', parLapply(cl, data_hh_list_pref, function(x) {
-            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], x$income[1]^2, colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
+            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
             return(output)
           }))
     } else {
       data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
       mat_YK = do.call('cbind', mclapply(data_hh_list_pref, function(x) {
-            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], x$income[1]^2, colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
+            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
             return(output)
           }, mc.cores=numcores))
     }
@@ -251,11 +254,6 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     }
 
     output_1 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[1]]))
-    # if (!(is.na(sum(output_1)))) {
-    #   if (max(output_1) == 0) {
-    #     return(list(NA, rep(NA, length(active_index_pref))))
-    #   }
-    # }
     output_2 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[2]]))
 
     d_output_1 = list();
@@ -333,7 +331,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   active_index = x_transform[[2]][c('beta_theta','sigma_thetabar', 'beta_theta_ind', var_list)] %>% unlist()
   tol = 1e-4
 
-  iteration = 1; 
+   
 
   init_pref = aggregate_moment_pref(transform_param(param_trial_here, return_index=TRUE))
   init_theta = aggregate_moment_theta(transform_param(param_trial_here, return_index=TRUE))
@@ -356,6 +354,9 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
       pref_moment = aggregate_moment_pref(transform_param(param_trial_inner_theta, return_index=TRUE))
       list_theta_var = c('beta_theta', 'beta_theta_ind', 'sigma_thetabar')
 
+      if (max(abs(unlist(x_transform[[1]][var_list]))) > 4) {
+        return(list(NA, rep(NA, length(active_index))))
+      }
       
       if (is.na(pref_moment[[1]]) | any(is.nan(pref_moment[[2]]))) {
         return(list(NA, rep(NA, length(x_pref_theta))))
@@ -381,6 +382,8 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     }, control=list(maxit=1e3), method='BFGS')
 
     param_trial_here[active_index] = optim_pref_theta$par
+    save_output[[iteration]] <<- param_trial_here; 
+    iteration <<- iteration + 1; 
   }
 
   print('optim_pref_theta = '); print(optim_pref_theta)
@@ -580,7 +583,7 @@ estimate_r_thetabar = optimize(function(xs) {
 param_trial = compute_inner_loop(log(estimate_r_thetabar$minimum), return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
 
 message('computing final param_trial')
-
+ 
 param_final = list(); 
 param_final$other = param_trial; 
 param_final$xi = xi_parameters;
