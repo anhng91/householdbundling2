@@ -5,7 +5,7 @@ if (length(args)<2) {
   } else {
     numcores = 8;
   }
-  job_index = 3;  
+  job_index = 4;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -200,9 +200,9 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-initial_param_trial = init_param
-# initial_param_trial = rep(0, length(init_param))
-# initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
+# initial_param_trial = init_param
+initial_param_trial = rep(0, length(init_param))
+initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
 # initial_param_trial[[x_transform[[2]]$beta_delta[1]]] = 0.1
 # initial_param_trial[[x_transform[[2]]$beta_theta_ind[1]]] = 1
 # initial_param_trial[[x_transform[[2]]$beta_theta[1]]] = -3
@@ -592,7 +592,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 1000)
+fit_sample = Vol_HH_list_index
 
 for (seed_number in c(1:10)) {
   if (Sys.info()[['sysname']] == 'Windows') {
