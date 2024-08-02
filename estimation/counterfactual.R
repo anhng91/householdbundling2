@@ -61,9 +61,6 @@ benchmark = readRDS('../../Obj_for_manuscript/fit_values.rds')
 list_hh_2012 = unlist(lapply(1:length(data_hh_list), function(hh_index) ifelse(data_hh_list[[hh_index]]$Year[1] == 2012 & data_hh_list[[hh_index]]$HHsize_s[1] == 2, hh_index, NA)))
 list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))]
 
-
-list_hh_2012 = sample(list_hh_2012, 200)
-
 data_2012 = benchmark %>% filter(id %in% list_hh_2012);
 
 budget_2012 = data_2012 %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% group_modify(function(data_hh_i, ...) {
@@ -80,6 +77,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 }
 
 job_index_list = c(1:100)
+iter_list = data_2012$iter %>% unique()
 
 for (job_index in job_index_list) {
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
@@ -130,7 +128,7 @@ for (job_index in job_index_list) {
 			print_index = print_index + 1; print(paste0('computing bundle discount premium index ', print_index));
 			counterfactual_values = mclapply(c(list_hh_2012), function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
-				output = do.call('rbind', lapply(1:10, function(iter) {
+				output = do.call('rbind', lapply(iter_list, function(iter) {
 					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, income_vec = income_vec))
 					output$iter = iter; 
 					output$Y = data_hh_list[[id]]$Income; 
@@ -142,8 +140,8 @@ for (job_index in job_index_list) {
 					}))
 				return(output)}, mc.cores=numcores)
 			counterfactual_values = do.call('rbind', counterfactual_values) %>% filter(Com_sts + Bef_sts + Std_w_ins == 0)
-			bd_output$surplus = c(bd_output$surplus, counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% pull(wtp) %>% sum - sum(counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal))) 
-			bd_output$budget = c(bd_output$budget, sum(counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) - (counterfactual_values$cost_to_insurance %>% sum()))
+			bd_output$surplus = c(bd_output$surplus, counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(wtp) %>% sum - sum(counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal))) 
+			bd_output$budget = c(bd_output$budget, sum(counterfactual_values %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(premium_optimal)) - (counterfactual_values$cost_to_insurance %>% sum()))
 		}
 
 		print_index = 0; 
@@ -151,7 +149,7 @@ for (job_index in job_index_list) {
 			print_index = print_index + 1; print(paste0('computing pure bundling premium index ', print_index));
 			counterfactual_values = mclapply(c(list_hh_2012), function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
-				output = do.call('rbind', lapply(1:10, function(iter) {
+				output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}, income_vec = income_vec)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
@@ -180,7 +178,7 @@ for (job_index in job_index_list) {
 
 		graph_data = rbind(pb_output, bd_output %>% select(-p_ratio) %>% filter(p2 == 2 * p1), bd_output %>% select(-p_ratio) %>% filter(p2 == 1.9 * p1))
 		graph_data$type = c(rep('PB', nrow(pb_output)), rep('IP', nrow(bd_output %>% filter(p2 == 2 * p1))), rep('BD', nrow(bd_output %>% filter(p2 == 1.9 * p1))))
-		ggplot(data = graph_data, aes(x = p2, y = surplus, linetype= budget >= budget_2012, color=type)) + geom_line()
+		ggplot(data = graph_data, aes(x = budget, y = surplus, linetype= budget >= budget_2012, color=type)) + geom_line()
 
 
 		ggplot(data = data.frame(x = c(bd_output$surplus, pb_output$surplus), y = c(bd_output$budget, pb_output$budget), color = c(rep('BD', nrow(bd_output)), rep('PB', nrow(pb_output)))), aes(x = y, y = x, color = color)) + geom_point()
