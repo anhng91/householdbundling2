@@ -3,9 +3,9 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 8;
+    numcores = 2;
   }
-  job_index = 3;  
+  job_index = 30;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -73,7 +73,7 @@ sample_identify_theta = full_index[which((lapply(full_index, function(sample_ind
 
 sample_no_sick = full_index[which((lapply(full_index, function(sample_index_i) {
       data_mini = data_hh_list[[sample_index_i]]
-      if (((data_mini$HHsize_s[1] == 0) & (sum(data_mini$sick_dummy == 0)))) {
+      if (((data_mini$HHsize_s[1] == 0) & (sum(data_mini$sick_dummy) == 0))) {
         return(1)
       } else {
         return(0)
@@ -94,8 +94,8 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 2000, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 500, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, 200, replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
 
@@ -200,9 +200,9 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-initial_param_trial = init_param
-# initial_param_trial = rep(0, length(init_param))
-# initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
+# initial_param_trial = init_param
+initial_param_trial = rep(0, length(init_param))
+initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
 # initial_param_trial[[x_transform[[2]]$beta_delta[1]]] = 0.1
 # initial_param_trial[[x_transform[[2]]$beta_theta_ind[1]]] = 1
 # initial_param_trial[[x_transform[[2]]$beta_theta[1]]] = -3

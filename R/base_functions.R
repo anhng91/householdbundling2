@@ -601,8 +601,8 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 				return(x)
 			}) %>% unlist()
 
-			theta_draw[, i] = theta_draw[, i] * halton_mat_list$sick[,i]
-			# theta_draw[, i] = theta_draw[, i] * data_hh_i$sick_dummy[i]
+			# theta_draw[, i] = theta_draw[, i] * halton_mat_list$sick[,i]
+			theta_draw[, i] = theta_draw[, i] * data_hh_i$sick_dummy[i]
 
 			if (min(theta_draw[,]) < 0) {
 				print(data_hh_i$sick_dummy[i])
