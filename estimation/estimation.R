@@ -3,9 +3,9 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 2;
+    numcores = 8;
   }
-  job_index = 30;  
+  job_index = 31;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -84,6 +84,7 @@ message('Identify the sample for preference')
 sample_identify_pref = lapply(Com_HH_list_index, function(x) ifelse(x %in% c(sample_identify_theta, sample_no_sick), NA, x)) %>% unlist()
 sample_identify_pref = sample_identify_pref[!(is.na(sample_identify_pref))]
 
+message(paste0('print sample_identify_pref = ', length(sample_identify_pref)))
 # Bootstrapping indices 
 message('bootstrapping indices')
 set.seed(job_index);
@@ -95,7 +96,7 @@ if (remote) {
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
   sample_r_theta = sample(sample_r_theta, 500, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, 200, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
 
