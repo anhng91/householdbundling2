@@ -3,7 +3,7 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 2;
+    numcores = 4;
   }
   job_index = 30;  
 } else {
@@ -94,8 +94,8 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 500, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, 200, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 2000, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
 
@@ -203,6 +203,7 @@ n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) da
 # initial_param_trial = init_param
 initial_param_trial = rep(0, length(init_param))
 initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2; 
+initial_param_trial[x_transform[[2]]$sigma_gamma = -2; 
 # initial_param_trial[[x_transform[[2]]$beta_delta[1]]] = 0.1
 # initial_param_trial[[x_transform[[2]]$beta_theta_ind[1]]] = 1
 # initial_param_trial[[x_transform[[2]]$beta_theta[1]]] = -3
@@ -222,7 +223,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   x_transform = transform_param(param_trial_here, return_index=TRUE)
 
 
-  aggregate_moment_pref = function(x_transform, silent=TRUE) {
+  aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE) {
     if (Sys.info()[['sysname']] == 'Windows') {
       clusterExport(cl, c('x_transform', 'n_halton_at_r'),envir=environment())
       data_hh_list_pref = parLapply(cl, sample_identify_pref,function(index) {
@@ -242,67 +243,85 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     }
 
     mat_YK = rbind(mat_YK, do.call('c', lapply(data_hh_list[sample_identify_pref], function(x) x$Income)))
-
-    if (Sys.info()[['sysname']] == 'Windows') {
-      clusterExport(cl, 'x_transform',envir=environment())
-      moment_ineligible_hh_output = parLapply(cl, data_hh_list_pref,function(mini_data) {
-        output = tryCatch(moment_ineligible_hh(mini_data, x_transform[[1]]),error=function(e) e)
-        return(output)
-      })
-    } else {
-      moment_ineligible_hh_output = mclapply(data_hh_list_pref, function(mini_data) tryCatch(moment_ineligible_hh(mini_data, x_transform[[1]]), error=function(e) e), mc.cores=numcores)
-    }
-
-    output_1 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[1]]))
-    output_2 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[2]]))
-
-    d_output_1 = list();
-    d_output_2 = list();
-    for (varname in var_list) {
-      if (grepl('sigma', varname)) {
-        d_output_1[[varname]] = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[3]][[varname]]))
-        d_output_2[[varname]] = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[4]][[varname]]))
+    mat_YK = rbind(1, mat_YK)
+    mini_f = function(x_transform) {
+      if (Sys.info()[['sysname']] == 'Windows') {
+        clusterExport(cl, 'x_transform',envir=environment())
+        moment_ineligible_hh_output = parLapply(cl, data_hh_list_pref,function(mini_data) {
+          output = tryCatch(moment_ineligible_hh(mini_data, x_transform[[1]]),error=function(e) e)
+          return(output)
+        })
       } else {
-        d_output_1[[varname]] = do.call('cbind', lapply(moment_ineligible_hh_output, function(x) x[[3]][[paste0('mean_',varname)]]))
-        d_output_2[[varname]] = do.call('cbind', lapply(moment_ineligible_hh_output, function(x) x[[4]][[paste0('mean_',varname)]]))
+        moment_ineligible_hh_output = mclapply(data_hh_list_pref, function(mini_data) tryCatch(moment_ineligible_hh(mini_data, x_transform[[1]]), error=function(e) e), mc.cores=numcores)
       }
-    }
 
-    moment = NULL
-    d_moment = list()
-    output = list(); 
-    output[[3]] = list();
-    # if (!silent) {
-      print('fit of ineligible HHs')
+      output_1 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[1]]))
+      output_2 = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[2]]))
+
+      print('fit of ineligible hh')
       print(summary(output_1))
       print(summary(mat_M[,1]))
-    # }
-    for (moment_index in c(1:nrow(mat_YK))) {
-      output[[3]][[moment_index]] = ((output_1 - mat_M[,1]) * mat_YK[moment_index,])^2
-      moment[moment_index] = mean(output[[3]][[moment_index]]); 
-      d_moment[[moment_index]] = 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]^2);
+      d_output_1 = list();
+      d_output_2 = list();
+      for (varname in var_list) {
+        if (grepl('sigma', varname)) {
+          d_output_1[[varname]] = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[3]][[varname]]))
+          d_output_2[[varname]] = do.call('c', lapply(moment_ineligible_hh_output, function(x) x[[4]][[varname]]))
+        } else {
+          d_output_1[[varname]] = do.call('cbind', lapply(moment_ineligible_hh_output, function(x) x[[3]][[paste0('mean_',varname)]]))
+          d_output_2[[varname]] = do.call('cbind', lapply(moment_ineligible_hh_output, function(x) x[[4]][[paste0('mean_',varname)]]))
+        }
+      }
+
+      moment = NULL
+      d_moment = list()
+      output = list(); 
+      output[[3]] = list();
+      for (moment_index in c(1:nrow(mat_YK))) {
+        output[[3]][[moment_index]] = ((output_1 - mat_M[,1]) * mat_YK[moment_index,])^2
+        moment[moment_index] = mean(output[[3]][[moment_index]]); 
+        d_moment[[moment_index]] = 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]^2);
+      }
+      for (moment_index in c(1:nrow(mat_YK))) {
+        output[[3]][[moment_index + nrow(mat_YK)]] = ((output_2 - mat_M[,2]) * mat_YK[moment_index,])^2
+        moment[moment_index + nrow(mat_YK)] = mean(output[[3]][[moment_index + nrow(mat_YK)]]); 
+        d_moment[[moment_index + nrow(mat_YK)]] = 2*((output_2 - mat_M[,2]) * mat_YK[moment_index,]^2);
+      }
+
+      d_moment = do.call('cbind', d_moment)
+
+      output[[1]] = sum(moment); 
+      output[[2]] = rep(0, length(initial_param_trial)); 
+
+      output[[2]][x_transform[[2]][['beta_delta']]] = apply(d_output_1[['beta_delta']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_delta']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
+      output[[2]][x_transform[[2]][['beta_omega']]] = apply(d_output_1[['beta_omega']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_omega']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
+      output[[2]][x_transform[[2]][['beta_gamma']]] = apply(d_output_1[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
+
+      output[[2]][x_transform[[2]][['sigma_delta']]] =  sum((d_output_1[['sigma_delta']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_delta']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
+      output[[2]][x_transform[[2]][['sigma_gamma']]] =  sum((d_output_1[['sigma_gamma']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_gamma']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
+      output[[2]][x_transform[[2]][['sigma_omega']]] =  sum((d_output_1[['sigma_omega']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_omega']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK))
+
+      output[[3]] = do.call('cbind', output[[3]])
+      output[[4]] = abs(mean(output_1) - mean(mat_M[,1]))
+      return(output)
     }
-    for (moment_index in c(1:nrow(mat_YK))) {
-      output[[3]][[moment_index + nrow(mat_YK)]] = ((output_2 - mat_M[,2]) * mat_YK[moment_index,])^2
-      moment[moment_index + nrow(mat_YK)] = mean(output[[3]][[moment_index + nrow(mat_YK)]]); 
-      d_moment[[moment_index + nrow(mat_YK)]] = 2*((output_2 - mat_M[,2]) * mat_YK[moment_index,]^2);
+
+    if (recompute_pref) {
+      mini_param = splitfngr::optim_share(rep(0, length(x_transform[[2]][var_list] %>% unlist())), function(x) {
+        if (max(abs(x)) > 4) {
+          return(list(NA, rep(NA, length(x))))
+        }
+        x_new = param_trial_here; 
+        x_new[x_transform[[2]][var_list] %>% unlist()] = x; 
+        output = mini_f(transform_param(x_new, return_index = TRUE)); 
+        print(paste0('output of aggregate_moment_pref  = ', output[[1]])); 
+        print('x = '); print(x)
+        print('derivative = '); print(output[[2]][x_transform[[2]][var_list] %>% unlist()]);
+        return(list(output[[1]], output[[2]][x_transform[[2]][var_list] %>% unlist()]))}, method='BFGS')
+      return(mini_param)
     }
-
-    d_moment = do.call('cbind', d_moment)
-
-    output[[1]] = sum(moment); 
-    output[[2]] = rep(0, length(initial_param_trial)); 
-
-    output[[2]][x_transform[[2]][['beta_delta']]] = apply(d_output_1[['beta_delta']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_delta']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
-    output[[2]][x_transform[[2]][['beta_omega']]] = apply(d_output_1[['beta_omega']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_omega']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
-    output[[2]][x_transform[[2]][['beta_gamma']]] = apply(d_output_1[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,1:nrow(mat_YK)])/length(x))) + apply(d_output_2[['beta_gamma']], 1, function(x) sum((x %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/length(x)))
-
-    output[[2]][x_transform[[2]][['sigma_delta']]] =  sum((d_output_1[['sigma_delta']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_delta']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
-    output[[2]][x_transform[[2]][['sigma_gamma']]] =  sum((d_output_1[['sigma_gamma']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_gamma']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK) )
-    output[[2]][x_transform[[2]][['sigma_omega']]] =  sum((d_output_1[['sigma_omega']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_omega']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK))
-
-    output[[3]] = do.call('cbind', output[[3]])
-    output[[4]] = abs(mean(output_1) - mean(mat_M[,1]))
+    
+    output = mini_f(transform_param(param_trial_here, return_index = TRUE))
     return(output)
   }
 
@@ -328,67 +347,22 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
     return(list(moment_realized_expense_val, moment_realized_expense_deriv))
   }
 
-  active_index = x_transform[[2]][c('beta_theta','sigma_thetabar', 'beta_theta_ind', var_list)] %>% unlist()
-  tol = 1e-4
+  index_theta_only = x_transform[[2]][c('beta_theta', 'sigma_thetabar', 'beta_theta_ind')] %>% unlist(); 
+  optim_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
+    param_tiny = initial_param_trial; 
+    param_tiny[index_theta_only] = x; 
+    output = aggregate_moment_theta(transform_param(param_tiny, return_index = TRUE));
+    print(paste0('aggregate_moment_theta output = ',  output[[1]]))
+    return(list(output[[1]], output[[2]][index_theta_only]))}, method='BFGS')
 
-   
-
-  init_pref = aggregate_moment_pref(transform_param(param_trial_here, return_index=TRUE))
-  init_theta = aggregate_moment_theta(transform_param(param_trial_here, return_index=TRUE))
-
-  if (is.na(init_pref[[1]]) | is.nan(init_pref[[1]]) | is.na(init_theta[[1]]) | is.nan(init_theta[[1]])) {
-    print('stop here')
-    return(NA)
-  }
-
-  if (estimate_theta) {
-    optim_pref_theta = splitfngr::optim_share(param_trial_here[active_index], function(x_pref_theta) {
-      param_trial_inner_theta = param_trial_here
-      param_trial_inner_theta[active_index] = x_pref_theta 
-      x_transform = transform_param(param_trial_inner_theta, return_index = TRUE)
-
-      output_theta = aggregate_moment_theta(x_transform)
-      if (is.nan(output_theta[[1]])) {
-        return(list(NA, rep(NA, length(active_index))))
-      }
-      pref_moment = aggregate_moment_pref(transform_param(param_trial_inner_theta, return_index=TRUE))
-      list_theta_var = c('beta_theta', 'beta_theta_ind', 'sigma_thetabar')
-
-      if (max(abs(unlist(x_transform[[1]][var_list]))) > 4) {
-        return(list(NA, rep(NA, length(active_index))))
-      }
-      
-      if (is.na(pref_moment[[1]]) | any(is.nan(pref_moment[[2]]))) {
-        return(list(NA, rep(NA, length(x_pref_theta))))
-      }
-
-      pref_derivative = pref_moment[[2]]
-      for (name_i in list_theta_var) {
-        i = x_transform[[2]][[name_i]][1]
-        param_trial_i = param_trial_inner_theta; param_trial_i[i] = param_trial_inner_theta[i] + tol
-        fi = aggregate_moment_pref(transform_param(param_trial_i, return_index=TRUE), silent=TRUE)
-        if (name_i == 'beta_theta') {
-          pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref_with_year)/nrow(X_ind_pref)
-        } else if (name_i == 'beta_theta_ind') {
-          pref_derivative[x_transform[[2]][[name_i]]] = (rowSums((fi[[3]] - pref_moment[[3]])/tol) %*% X_ind_pref)/nrow(X_ind_pref)
-        } else {
-          pref_derivative[i] = (fi[[1]] - pref_moment[[1]])/tol
-        }
-      }
-      output = list()
-      output[[1]] = pref_moment[[1]] * length(sample_identify_pref) + output_theta[[1]] 
-      output[[2]] = pref_derivative[active_index] * length(sample_identify_pref) + output_theta[[2]][active_index] 
-      return(output)
-    }, control=list(maxit=1e3), method='BFGS')
-
-    param_trial_here[active_index] = optim_pref_theta$par
-    save_output[[iteration]] <<- param_trial_here; 
-    iteration <<- iteration + 1; 
-  }
-
-  print('optim_pref_theta = '); print(optim_pref_theta)
+  param_trial_here[index_theta_only] = optim_theta$value; 
   
-  active_index = c(x_transform[[2]]$sigma_r,  x_transform[[2]]$sigma_theta, x_transform[[2]]$beta_r); 
+
+  index_pref_only = x_transform[[2]][c('beta_omega','beta_delta', 'beta_gamma', 'sigma_delta', 'sigma_gamma', 'sigma_omega')] %>% unlist(); 
+  optim_pref = aggregate_moment_pref(transform_param(param_trial_here, return_index = TRUE), recompute_pref=TRUE); 
+
+  prev_moment = optim_pref$value
+  param_trial_here[index_pref_only] = optim_pref$par; 
 
   x_transform = transform_param(param_trial_here, return_index=TRUE)
 
@@ -521,22 +495,18 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
 
   index_r = x_transform[[2]][c('beta_r', 'sigma_r', 'correlation')] %>% unlist()
 
-  optim_r = splitfngr::optim_share(param_trial_here[index_r], function(x) {
+  optim_r = optim(param_trial_here[index_r], function(x) {
     x_with_new_r = param_trial_here; 
     x_with_new_r[index_r] = x; 
-    output = fx_r(transform_param(x_with_new_r, return_index=TRUE), silent=TRUE, derivative=TRUE)
-    return(list(output[[1]], output[[2]][index_r]))
+    output = fx_r(transform_param(x_with_new_r, return_index=TRUE), silent=FALSE, derivative=FALSE)
+    return(output[[1]])
   }, control=list(maxit=1e4), method='BFGS') 
 
-  print('-------fit--------')
-  param_trial_here[index_r] = optim_r$par;
-  print('output of r'); fx_r(transform_param(param_trial_here, return_index =TRUE), silent=FALSE)
 
   param_trial_here[c(x_transform[[2]]$beta_r, x_transform[[2]]$sigma_r, x_transform[[2]]$correlation)] = optim_r$par
   x_transform = transform_param(param_trial_here,return_index=TRUE); 
-  print('output of preference moments'); aggregate_moment_pref(x_transform, silent=FALSE) 
 
-  print(x_transform[[1]])
+
   output_2 = lapply(moment_eligible_hh_output, function(output_hh) {
       sd = exp(optim_r$par[length(optim_r$par)-1])
       correlation = optim_r$par[length(optim_r$par)]
@@ -560,7 +530,7 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
 
   if (!(estimate_theta)) {
     optim_pref_theta = list()
-    optim_pref_theta$value = 0 
+    prev_moment = 0 
   }
 
   if (return_result) {
@@ -568,19 +538,18 @@ compute_inner_loop = function(x_stheta, return_result=FALSE, estimate_theta=TRUE
   } else {
     print(paste0('output_2 = ', output_2));
     print(paste0('optim_r$value = ', optim_r$value));
-    print(paste0('optim_pref_theta$value = ', optim_pref_theta$value)) 
-    return(output_2 + optim_r$value/length(relevant_index) + optim_pref_theta$value) 
+    print(paste0('theta and pref moment = ', prev_moment)) 
+    return(output_2 + optim_r$value/length(relevant_index) + prev_moment) 
   }
-  
 }
 
 estimate_r_thetabar = optimize(function(xs) {
-  output = compute_inner_loop(log(xs))
+  output = compute_inner_loop(xs)
   return(output)
-}, c(1e-3,1)) 
+}, c(-0.7,-0.3)) 
 
 
-param_trial = compute_inner_loop(log(estimate_r_thetabar$minimum), return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
+param_trial = compute_inner_loop(estimate_r_thetabar$minimum, return_result=TRUE, estimate_theta=TRUE, estimate_pref = TRUE)
 
 message('computing final param_trial')
  
@@ -594,7 +563,7 @@ transform_param_final = transform_param(param_final$other)
 
 fit_sample = sample(Vol_HH_list_index, 1000)
 
-for (seed_number in c(1:10)) {
+for (seed_number in c(1:2)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('transform_param_final', 'param','counterfactual_household_draw_theta_kappa_Rdraw'))
     mini_fit_values = parLapply(cl, c(fit_sample), function(id) {
