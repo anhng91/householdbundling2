@@ -3,9 +3,9 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 4;
+    numcores = 8;
   }
-  job_index = 234234;  
+  job_index = 100;  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
@@ -199,7 +199,7 @@ n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) da
 # initial_param_trial = init_param
 initial_param_trial = rep(0, length(init_param))
 initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2;
-initial_param_trial[x_transform[[2]]$sigma_theta] = -2; 
+initial_param_trial[x_transform[[2]]$sigma_theta] = -1.7; 
 
 iteration = 1;
 save_output = list();
