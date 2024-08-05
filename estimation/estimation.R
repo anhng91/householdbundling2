@@ -5,7 +5,7 @@ if (length(args)<2) {
   } else {
     numcores = 8;
   }
-  job_index = 100;  
+  job_index = as.integer(Sys.time());  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
