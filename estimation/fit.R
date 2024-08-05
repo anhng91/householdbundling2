@@ -64,9 +64,9 @@ if (Sys.info()[['sysname']] == 'Windows') {
   clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index'))
 }
 	
-job_index_list = c(1:100)
+job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
 
-iter_list = c(1:10)
+iter_list = c(1:2)
 
 for (job_index in job_index_list) {
 	print(paste0('computing at index = ', job_index))

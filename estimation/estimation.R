@@ -94,7 +94,7 @@ if (remote) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 } else {
-  sample_r_theta = sample(sample_r_theta, 1000, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 3000, replace=TRUE)
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 }
@@ -576,9 +576,9 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 1000)
+fit_sample = sample(Vol_HH_list_index, 3000)
 
-for (seed_number in c(1:5)) {
+for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('transform_param_final', 'param','counterfactual_household_draw_theta_kappa_Rdraw'))
     mini_fit_values = parLapply(cl, c(fit_sample), function(id) {
