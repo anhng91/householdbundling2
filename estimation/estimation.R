@@ -556,7 +556,7 @@ optim_f =  function(x_pref_theta) {
 
 optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
   output = try(optim_f(x))
-  if("try-error" %in% class(t)) {
+  if("try-error" %in% class(output)) {
     return(list(NA, rep(NA, length(index_theta_only))))
   } else {
     return(output)
