@@ -1234,10 +1234,10 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 	mean_beta_gamma = X_ind %*% param$beta_gamma; 
 	mean_beta_r = X_hh %*% param$beta_r;
 
-	input_vec = c(param$sigma_thetabar, mean_beta_theta, mean_beta_theta_ind); 
+	input_vec = c(param$sigma_thetabar, mean_beta_theta, mean_beta_theta_ind, param$sigma_theta); 
 
-	names_input_vec = c('sigma_thetabar','mean_beta_theta', 'mean_beta_theta_ind')
-	size_input_vec = c(1, HHsize, HHsize)
+	names_input_vec = c('sigma_thetabar','mean_beta_theta', 'mean_beta_theta_ind', 'sigma_theta')
+	size_input_vec = c(1, HHsize, HHsize, 1)
 	halton_mat_list = list()
 	halton_mat = randtoolbox::halton(n_draw_halton, HHsize * 6 + 2)
 	halton_mat_list$individual_factor = qnorm(halton_mat[,1:HHsize]) %>% matrix(ncol = HHsize);
@@ -1272,7 +1272,7 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 	observed_insurance_index = which(apply(list_insurance, 1, function(x) all(x[1:HHsize] == observed_insurance)))
 
 	theta = data_hh_i$tot_cost_normalized;
-	theta_pos_index = which(theta > 0);
+	theta_pos_index = which(data_hh_i$sick_dummy == 1);
 
 	s_thetabar = exp(param$sigma_thetabar); 
 	s_theta = exp(param$sigma_theta); 
@@ -1287,11 +1287,25 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 		z = -theta_bar/s_theta
 		Em = matrix(lapply(theta_bar + dnorm(z)/(1 - pnorm(z))*s_theta, function(x) ifelse(is.nan(x) | is.infinite(x) | x < 0, 0, x)) %>% unlist(), ncol = HHsize); 
 
-		Em2 = Em^2 + (matrix(lapply(s_theta^2 * (1 + (z)*dnorm(z)/(1 - pnorm(z)) - (dnorm(z)/(1 - pnorm(z)))^2), function(x) ifelse(is.nan(x) | is.infinite(x), 0, x)) %>% unlist(), ncol = HHsize)) * (Em > 0)
-		moment = matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)) + 
-			matrix(apply(Em2[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) ((theta[theta_pos_index])^2 - x)^2), ncol = length(theta_pos_index))
-		sum_moment = mean(rowSums(moment))
-		return(sum_moment)
+		Emimj = lapply(1:nrow(Em), function(index) (Em[index,]) %*% t(Em[index,]));
+
+
+		Em2 = Em^2 + (matrix(lapply(s_theta^2 * (1 + (z)*dnorm(z)/(1 - pnorm(z)) - (dnorm(z)/(1 - pnorm(z)))^2), function(x) ifelse(is.nan(x) | is.infinite(x), 0, x)) %>% unlist(), ncol = HHsize)) * (Em > 0); 
+
+
+		Emimj_new = lapply(1:nrow(Em), function(index) {diag(Emimj[[index]]) = Em2[index,]; return(Emimj[[index]])})
+
+
+		# moment = matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)) + 
+		# 	matrix(apply(Em2[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) ((theta[theta_pos_index])^2 - x)^2), ncol = length(theta_pos_index))
+
+		moment = mean(rowSums(matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)))) + mean(lapply(Emimj_new, function(x) sum((x[theta_pos_index, theta_pos_index] - (theta[theta_pos_index]) %*% t(theta[theta_pos_index]))^2)) %>% unlist())
+
+		# sum_moment = mean(rowSums(moment))
+		# compute LLH: 
+		# LLH = mean(apply(do.call('cbind', lapply(theta_pos_index, function(i) dnorm(theta[i], mean = theta_bar[,i], sd = s_theta)/(1 - pnorm(0, mean = theta_bar[,i], sd = s_theta)))), 1, prod), na.rm=TRUE)
+		# return(-LLH)
+		return(moment)
 		
 	}
 
@@ -1323,6 +1337,7 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 	start=1; end = start;derivative_param$sigma_thetabar = derivative[start:end];
 	start = end + 1; end = start + HHsize - 1; derivative_param$beta_theta =apply(cbind(X_ind, data_hh_i$Year == 2004, data_hh_i$Year == 2006, data_hh_i$Year == 2010, data_hh_i$Year == 2012), 2, function(x) sum(x*derivative[start:end])); 
 	start = end + 1; end = start + HHsize - 1; derivative_param$beta_theta_ind =apply(X_ind, 2, function(x) sum(x*derivative[start:end])); 
+	start=end; end = start;derivative_param$sigma_theta = derivative[start:end];
 
 	return(list(f0, derivative_param))
 	
