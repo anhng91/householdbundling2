@@ -17,7 +17,7 @@ library(randtoolbox)
 library(Hmisc)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 Vol_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
@@ -66,7 +66,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 	
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
 
-iter_list = c(1:2)
+iter_list = c(1:1)
 
 for (job_index in job_index_list) {
 	print(paste0('computing at index = ', job_index))
@@ -76,7 +76,7 @@ for (job_index in job_index_list) {
 		if (Sys.info()[['sysname']] == 'Windows') {
 		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw'))
 		  fit_values = parLapply(cl, c(Vol_HH_list_index, Com_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(1:2, function(iter) {
+			output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
@@ -90,7 +90,7 @@ for (job_index in job_index_list) {
 			})
 
 			no_heterogeneity_values = parLapply(cl, c(Vol_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(1:2, function(iter) {
+			output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
@@ -104,7 +104,7 @@ for (job_index in job_index_list) {
 			})
 		} else {
 		  fit_values = mclapply(c(Vol_HH_list_index, Com_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(1:2, function(iter) {
+			output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
@@ -117,7 +117,7 @@ for (job_index in job_index_list) {
 			return(output)}, mc.cores=numcores)
 
 			no_heterogeneity_values = mclapply(c(Vol_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(1:2, function(iter) {
+			output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 

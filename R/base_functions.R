@@ -1464,6 +1464,7 @@ uniroot_usr = function(f, interval_init) {
 #' @param constraint_function is a function that can reflect whether we are imposing pure bundling or something else on the possible choice set. For example, for pure bundling, constraint_function = function(x) {x[-c(1,length(x))] = -Inf; return(x)}
 #' @param within_hh_heterogeneity is a list with list names gamma, delta, and theta_bar. If a list element is true, within-hh-heterogeneity is allowed.
 #' @param income_vec a vector of income net premium at different number of voluntarily insured members (from 0 to HHsize_s)
+#' @param contraction_variance is a numerical value to change the within-hh covariance matrix (towards 0)
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1474,7 +1475,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA) {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1) {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1532,7 +1533,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 	for (i in 1:HHsize) { 
 		random_draw_here = rnorm(1)
-		theta_bar[i] = random_draw_here * s_thetabar + random_hh_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta;
+		theta_bar[i] = random_draw_here * s_thetabar * contraction_variance + random_hh_factor * contraction_variance * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta;
 		beta_theta[i] = t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta 
 	}
 
@@ -1577,6 +1578,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		return(output)
 	})), ncol=HHsize) * halton_mat_list$sick
 
+
 	theta_draw = matrix(apply(theta_draw, 2, function(x) {
 		x[which(is.na(x) | is.infinite(x))] = 0
 		return(x)
@@ -1600,10 +1602,13 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 	common_household_factor = matrix(NA, nrow=n_draw_halton, ncol = HHsize);
 
+
 	if (is.na(income_vec[1])) {
 		income_vec = Income_net_premium[[hh_index]]
 	} 
 	
+	income_vec = income_vec + max(rowSums(theta_draw))
+
 	income_effect = max(income_vec[1] - rowSums(theta_draw)) > 0
 
 	
@@ -1689,7 +1694,6 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 			}
 		}
 
-
 		optimal_U_index = sort(constraint_function(unlist(U_list)), index.return=TRUE, decreasing=TRUE)$ix[1]
 
 		optimal_U_index = max(which(unlist(U_list) == U_list[optimal_U_index]))
@@ -1707,6 +1711,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 			kappa_draw_2 = list_2$kappa_draw;
 			U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
 			U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
+			plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
 			return(cara(U1) - cara(U2))
 		}
 
@@ -1721,6 +1726,12 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 		for (i in elig_member_index) {
 			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
+
+			if (temp_f(0) > 0) {
+				print(i)
+				stop()
+				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+			}
 			wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
 			wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
 			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)

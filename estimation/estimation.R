@@ -373,6 +373,7 @@ optim_f =  function(x_pref_theta) {
     X_ind_pref_r = do.call('rbind', lapply(moment_eligible_hh_output, function(x) x$X_ind));
 
     output_wrt_r = function(x_transform, silent = TRUE) {
+      param_trial_inner_r = as.vector(unlist(x_transform[[1]]))
       if (Sys.info()[['sysname']] == 'Windows') {
         clusterExport(cl, c('x_transform', 'sick_parameters', 'xi_parameters'),envir=environment())
         moment_eligible_hh_output = parLapply(cl, sample_r_theta, function(mini_data_index) tryCatch(household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = TRUE), error=function(e) e))
@@ -493,8 +494,8 @@ optim_f =  function(x_pref_theta) {
 
       index_r = x_transform[[2]][c('beta_r', 'sigma_r', 'correlation')] %>% unlist()
 
-      optim_r = optim(param_trial_here[index_r], function(x) {
-        x_with_new_r = param_trial_here; 
+      optim_r = optim(param_trial_inner_r[index_r], function(x) {
+        x_with_new_r = param_trial_inner_r; 
         x_with_new_r[index_r] = x; 
         output = fx_r(transform_param(x_with_new_r, return_index=TRUE), silent=silent, derivative=FALSE)
         return(output[[1]])
@@ -502,8 +503,8 @@ optim_f =  function(x_pref_theta) {
 
       print(optim_r)
 
-      param_trial_here[c(x_transform[[2]]$beta_r, x_transform[[2]]$sigma_r, x_transform[[2]]$correlation)] = optim_r$par
-      x_transform = transform_param(param_trial_here,return_index=TRUE); 
+      param_trial_inner_r[c(x_transform[[2]]$beta_r, x_transform[[2]]$sigma_r, x_transform[[2]]$correlation)] = optim_r$par
+      x_transform = transform_param(param_trial_inner_r,return_index=TRUE); 
 
 
       output_2 = lapply(moment_eligible_hh_output, function(output_hh) {
