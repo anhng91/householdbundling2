@@ -3,19 +3,20 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 8;
+    numcores = 4;
   }
   job_index = as.integer(Sys.time());  
 } else {
   job_index = as.numeric(args[1]);
   numcores = as.numeric(args[2]); 
 }
-if (dir.exists('work/teckyongtan/tecktan/Oil/Data/R_lib')) {
-  .libPaths('work/teckyongtan/tecktan/Oil/Data/R_lib')
-  remote = TRUE
+
+if (numcores < 6) {
+  mini=TRUE
 } else {
-  remote = FALSE
+  mini=FALSE
 }
+
 options("install.lock"=FALSE)
 library(knitr)
 library(tidyverse)
@@ -89,14 +90,27 @@ message('bootstrapping indices')
 set.seed(job_index);
 sample_index = sample(1:length(data_hh_list), length(data_hh_list), replace=TRUE)
 sample_r_theta = Vol_HH_list_index
-if (remote) {
-  sample_r_theta = sample(sample_r_theta, length(sample_r_theta), replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
+if (mini) {
+  message('estimating in mini mode')
+  sample_r_theta = sample(sample_r_theta, 100, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, 1000, replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
+
+  n_draw_halton = 50;
+
+  n_halton_at_r = 50;
+
+  n_draw_gauss = 10;
 } else {
   sample_r_theta = sample(sample_r_theta, 3000, replace=TRUE)
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
+
+  n_draw_halton = 100;
+
+  n_halton_at_r = 100;
+
+  n_draw_gauss = 10;
 }
 
 
@@ -118,7 +132,7 @@ message('Preparing data for estimation')
 data_hh_list_theta = list()
 for (index in 1:length(sample_identify_theta)) {
   message(paste0('constructing data for index', index))
-  data_hh_list_theta[[index]] = household_draw_theta_kappa_Rdraw(hh_index=sample_identify_theta[index], param=transform_param_trial[[1]], n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE)
+  data_hh_list_theta[[index]] = household_draw_theta_kappa_Rdraw(hh_index=sample_identify_theta[index], param=transform_param_trial[[1]], n_draw_halton = 1000, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE)
 }
 
 
@@ -130,10 +144,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
   clusterEvalQ(cl, library('familyenrollment'))
   clusterExport(cl, c('param_trial', 'data_hh_list_theta'))
 }
-
-n_draw_halton = 100; 
-
-n_halton_at_r = 100; 
+ 
 
 
 if (Sys.info()[['sysname']] == 'Windows') {
@@ -146,11 +157,11 @@ message('compute covariates before estimation')
 
 if (Sys.info()[['sysname']] == 'Windows') {
   data_hh_list_pref = parLapply(cl, sample_identify_pref,function(index) {
-    output = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=transform_param_trial[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE),error=function(e) e)
+    output = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=transform_param_trial[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE),error=function(e) e)
     return(output)
   })
 } else {
-  data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=transform_param_trial[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
+  data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=transform_param_trial[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
 }
 
 
@@ -199,7 +210,10 @@ n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) da
 # initial_param_trial = init_param
 initial_param_trial = rep(0, length(init_param))
 initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2;
-initial_param_trial[x_transform[[2]]$sigma_theta] = -1.7; 
+initial_param_trial[x_transform[[2]]$sigma_theta] = -1.7;
+initial_param_trial[x_transform[[2]]$sigma_gamma] = -3;
+initial_param_trial[x_transform[[2]]$sigma_omega] = -3;
+initial_param_trial[x_transform[[2]]$sigma_delta] = -3;
 
 iteration = 1;
 save_output = list();
@@ -214,7 +228,7 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('x_transform', 'n_halton_at_r'),envir=environment())
     data_hh_list_pref = parLapply(cl, sample_identify_pref,function(index) {
-      output = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE),error=function(e) e)
+      output = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE),error=function(e) e)
       return(output)
     })
     mat_YK = do.call('cbind', parLapply(cl, data_hh_list_pref, function(x) {
@@ -222,12 +236,13 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
           return(output)
         }))
   } else {
-    data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = 10, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
+    data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
     mat_YK = do.call('cbind', mclapply(data_hh_list_pref, function(x) {
           output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
           return(output)
         }, mc.cores=numcores))
   }
+
 
   mat_YK = rbind(mat_YK, do.call('c', lapply(data_hh_list[sample_identify_pref], function(x) x$Income)))
   mat_YK = rbind(1, mat_YK)
@@ -291,11 +306,15 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
     output[[2]][x_transform[[2]][['sigma_omega']]] =  sum((d_output_1[['sigma_omega']] %*% d_moment[,1:nrow(mat_YK)])/nrow(mat_YK) ) + sum((d_output_2[['sigma_omega']] %*% d_moment[,(nrow(mat_YK) + 1):(2 * nrow(mat_YK))])/nrow(mat_YK))
 
     output[[3]] = do.call('cbind', output[[3]])
-    output[[4]] = abs(mean(output_1) - mean(mat_M[,1]))
+    output[[4]] = output_1
     return(output)
   }
 
   if (recompute_pref) {
+    output_initial = mini_f(x_transform);
+    if (mean(output_initial[[4]]) > mean(mat_M[,1])) {
+      return(list(par = initial_param_trial[x_transform[[2]][pref_list] %>% unlist()]))
+    }
     mini_param = splitfngr::optim_share(initial_param_trial[x_transform[[2]][pref_list] %>% unlist()], function(x) {
       if (max(abs(x)) > 4) {
         return(list(NA, rep(NA, length(x))))
@@ -501,8 +520,6 @@ optim_f =  function(x_pref_theta) {
         return(output[[1]])
       }, control=list(maxit=1e4), method='BFGS') 
 
-      print(optim_r)
-
       param_trial_inner_r[c(x_transform[[2]]$beta_r, x_transform[[2]]$sigma_r, x_transform[[2]]$correlation)] = optim_r$par
       x_transform = transform_param(param_trial_inner_r,return_index=TRUE); 
 
@@ -552,7 +569,7 @@ optim_f =  function(x_pref_theta) {
     print('--------------------')
     save_output[[iter]] <<- param_trial_here
     iter <<- iter + 1; 
-    return(list(pref_moment[[1]] + output_theta[[1]] + output_r, pref_moment[[2]][index_theta_only] + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]))
+    return(list(pref_moment[[1]] + output_theta[[1]] + output_r, pref_moment[[2]][index_theta_only] + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only], param_trial_here))
 }
 
 optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
@@ -560,11 +577,12 @@ optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only],
   if("try-error" %in% class(output)) {
     return(list(NA, rep(NA, length(index_theta_only))))
   } else {
-    return(output)
+    return(output[1:2])
   }
 }, control=list(maxit=1e3), method='BFGS')
-param_trial[index_theta_only] = optim_pref_theta$par; 
-param_trial[index_pref_only] = aggregate_moment_pref(transform_param(param_trial, return_index = TRUE), recompute_pref=TRUE)$par; 
+
+param_trial = optim_f(optim_pref_theta$par)[[3]]; 
+
 
 
 message('computing final param_trial')
@@ -577,9 +595,9 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 3000)
+fit_sample = sample_r_theta
 
-for (seed_number in c(1:1)) {
+for (seed_number in c(1:100)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('transform_param_final', 'param','counterfactual_household_draw_theta_kappa_Rdraw'))
     mini_fit_values = parLapply(cl, c(fit_sample), function(id) {
@@ -601,7 +619,7 @@ for (seed_number in c(1:1)) {
     output$HHsize_s = data_hh_list[[id]]$HHsize_s; 
     return(output)}, mc.cores=numcores)
   }
-  if (seed_number == 1) {
+  if (seed_number == min(seed_number)) {
     fit_values = do.call('rbind', mini_fit_values)
   } else {
     fit_values = rbind(fit_values, do.call('rbind', mini_fit_values))

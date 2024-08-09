@@ -62,7 +62,7 @@ d_mean_E_XW = function(mu, sigma, X) {
 #' truncated_normal_mean(1, 1)
 
 truncated_normal_mean = function(mu, sigma) {
-	output = mu  + dnorm(0, mean=mu, sd=sigma)/(1 - pnorm(0, mean=mu, sd=sigma))*sigma
+	output = mu  + dnorm(-mu/sigma)/(1 - pnorm(-mu/sigma))*sigma
 	if (is.infinite(output) | is.nan(output) | (output < 0)) {
 		return(0)
 	} else {
@@ -83,16 +83,24 @@ truncated_normal_mean = function(mu, sigma) {
 #' d_truncated_normal_mean(1, 1)
 
 d_truncated_normal_mean = function(mu, sigma) {
-	output = mu  + dnorm(0, mean=mu, sd=sigma)/(1 - pnorm(0, mean=mu, sd=sigma))*sigma
+	output = mu  + dnorm(-mu/sigma)/(1 - pnorm(-mu/sigma))*sigma
 	d_output = list();
 
 	# the derivatives are produced by matlab symbolic functions, the numerical values are related to pi.
 
-	d_output$mu = (2251799813685248*mu*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^2*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) - (1125899906842624*2^(1/2)*exp(-mu^2/sigma^2))/(5644425081792261*sigma*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) + 1
+	diff_dnorm_mu = dnorm(-mu/sigma) * (-(-mu/sigma))*(-1)/sigma;
+	diff_pnorm_mu = dnorm(-mu/sigma)*(-1/sigma); 
 
- 	d_output$sigma = (1125899906842624*2^(1/2)*mu*exp(-mu^2/sigma^2))/(5644425081792261*sigma^2*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) - (2251799813685248*mu^2*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^3*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1))
+	diff_dnorm_sigma = dnorm(-mu/sigma) * (-(-mu/sigma))*mu/sigma^2;
+	diff_pnorm_sigma = dnorm(-mu/sigma)*mu/sigma^2;
+	d_output$mu = 1 + diff_dnorm_mu/(1 - pnorm(-mu/sigma))*sigma - dnorm(-mu/sigma)*(-1)*diff_pnorm_mu/(1 - pnorm(-mu/sigma))^2*sigma;
+
+ 	d_output$sigma = diff_dnorm_sigma/(1 - pnorm(-mu/sigma))*sigma - dnorm(-mu/sigma)*(-1)*diff_pnorm_sigma/(1 - pnorm(-mu/sigma))^2*sigma + dnorm(-mu/sigma)/(1 - pnorm(-mu/sigma));
  
- 
+ 	# print(paste0('analytic = ', d_output$mu, 'numerical = ', ((mu + 1e-3)  + dnorm(-(mu + 1e-3)/sigma)/(1 - pnorm(-(mu + 1e-3)/sigma))*sigma - output)/1e-3))
+ 	# print(paste0('analytic = ', d_output$sigma, 'numerical = ', ((mu)  + dnorm(-(mu)/(sigma+ 1e-3))/(1 - pnorm(-(mu)/(sigma+ 1e-3)))*(sigma+ 1e-3) - output)/1e-3))
+
+
 	if (is.infinite(output) | is.nan(output)) {
 		return(list(mu = 0, sigma = 0))
 	} else if (output < 0) {
@@ -114,8 +122,8 @@ d_truncated_normal_mean = function(mu, sigma) {
 #' truncated_normal_variance(1, 1)
 
 truncated_normal_variance = function(mu, sigma) {
-	Z = (1 - pnorm(0, mean=mu, sd=sigma))
-	output = sigma^2 * (1 + (0 - mu)/sigma * dnorm(0, mean=mu, sd=sigma)/Z - (dnorm(0, mean=mu, sd=sigma))^2/Z^2)
+	Z = (1 - pnorm(-mu/sigma))
+	output = sigma^2 * (1 + (0 - mu)/sigma * dnorm(-mu/sigma)/Z - (dnorm(-mu/sigma))^2/Z^2)
 	if (is.infinite(output) | is.nan(output)) {
 		return(0)
 	} else if (output < 0) {
@@ -137,15 +145,27 @@ truncated_normal_variance = function(mu, sigma) {
 #' d_truncated_normal_variance(1, 1)
 
 d_truncated_normal_variance = function(mu, sigma) {
-	Z = (1 - pnorm(0, mean=mu, sd=sigma))
-	output = sigma^2 * (1 + (0 - mu)/sigma * dnorm(0, mean=mu, sd=sigma)/Z - (dnorm(0, mean=mu, sd=sigma))^2/Z^2)
+	Z = (1 - pnorm(-mu/sigma))
+	output = sigma^2 * (1 + (0 - mu)/sigma * dnorm(-mu/sigma)/Z - (dnorm(-mu/sigma))^2/Z^2)
+
+	diff_dnorm_mu = dnorm(-mu/sigma) * (-(-mu/sigma))*(-1)/sigma;
+	diff_pnorm_mu = dnorm(-mu/sigma)*(-1/sigma); 
+
+	diff_dnorm_sigma = dnorm(-mu/sigma) * (-(-mu/sigma))*mu/sigma^2;
+	diff_pnorm_sigma = dnorm(-mu/sigma)*mu/sigma^2;
+
+	diff_Z_mu = -diff_pnorm_mu; 
+	diff_Z_sigma = -diff_pnorm_sigma; 
 
 	d_output = list()
-	d_output$mu = sigma^2*((2251799813685248*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^2*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) + (10141204801825835211973625643008*mu*exp(-mu^2/sigma^2))/(31859534503965572279823959492121*sigma^4*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) - (2251799813685248*mu^2*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^4*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) - (5070602400912917605986812821504*2^(1/2)*exp(-mu^2/sigma^2)*exp(-mu^2/(2*sigma^2)))/(31859534503965572279823959492121*sigma^3*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^3) + (1125899906842624*2^(1/2)*mu*exp(-mu^2/sigma^2))/(5644425081792261*sigma^3*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2));
+	d_output$mu = sigma^2 * (- 1/sigma * dnorm(-mu/sigma)/Z - mu/sigma * diff_dnorm_mu/Z - mu/sigma * dnorm(-mu/sigma)/(-Z^2) * diff_Z_mu  - 2 * (dnorm(-mu/sigma)) * diff_dnorm_mu/Z^2 - (dnorm(-mu/sigma))^2 * (-2)/Z^3 * diff_Z_mu);
+
+	d_output$sigma = 2 * sigma * (1 + (0 - mu)/sigma * dnorm(-mu/sigma)/Z - (dnorm(-mu/sigma))^2/Z^2) + 
+		sigma^2 * (mu/sigma^2 * dnorm(-mu/sigma)/Z - mu/sigma*diff_dnorm_sigma/Z - mu/sigma*dnorm(-mu/sigma)/Z^2 * (-1) * diff_Z_sigma  - 2 * dnorm(-mu/sigma) * diff_dnorm_sigma/Z^2  - (dnorm(-mu/sigma))^2 * (-2)/Z^3 * diff_Z_sigma)
 
 
-	d_output$sigma = 2*sigma*((2251799813685248*mu*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^2*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) - (5070602400912917605986812821504*exp(-mu^2/sigma^2))/(31859534503965572279823959492121*sigma^2*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) + 1) + sigma^2*((10141204801825835211973625643008*exp(-mu^2/sigma^2))/(31859534503965572279823959492121*sigma^3*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) - (4503599627370496*mu*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^3*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) - (10141204801825835211973625643008*mu^2*exp(-mu^2/sigma^2))/(31859534503965572279823959492121*sigma^5*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) + (2251799813685248*mu^3*exp(-mu^2/(2*sigma^2)))/(5644425081792261*sigma^5*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)) - (1125899906842624*2^(1/2)*mu^2*exp(-mu^2/sigma^2))/(5644425081792261*sigma^4*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^2) + (5070602400912917605986812821504*2^(1/2)*mu*exp(-mu^2/sigma^2)*exp(-mu^2/(2*sigma^2)))/(31859534503965572279823959492121*sigma^4*pi^(1/2)*(pracma::erfc((2^(1/2)*mu)/(2*sigma))/2 - 1)^3))
-
+	# print(paste0('analytic = ', d_output$mu, 'numerical = ', (sigma^2 * (1 + (0 - (mu+1e-3))/sigma * dnorm(-(mu+1e-3)/sigma)/(1 - pnorm(-(mu + 1e-3)/sigma)) - (dnorm(-(mu+1e-3)/sigma))^2/(1 - pnorm(-(mu + 1e-3)/sigma))^2) - output)/1e-3))
+ 	# print(paste0('analytic = ', d_output$sigma, 'numerical = ',  ((sigma + 1e-3) ^2 * (1 + (0 - (mu))/(sigma + 1e-3)  * dnorm(-(mu)/(sigma + 1e-3) )/(1 - pnorm(-mu/(sigma + 1e-3))) - (dnorm(-(mu)/(sigma + 1e-3) ))^2/(1 - pnorm(-(mu)/(sigma + 1e-3) ))^2) - output)/1e-3))
 
 	if (is.infinite(output) | is.nan(output)) {
 		return(list(mu = 0, sigma = 0))
@@ -439,6 +459,7 @@ U = function(input, income_effect=TRUE, diagnosis = FALSE) {
 	if (!income_effect) {
 		output = input$R_draw
 	} else {
+		input$R_draw = input$R_draw 
 		output = lapply(((input$R_draw * (input$R_draw > 0) + 1)^(1 - input$omega)-1)/(1 - input$omega), function(x) ifelse(is.nan(x), 0, x)) %>% unlist() - rowSums(matrix(t(apply(input$theta_draw, 1, function(x) x * input$delta)), ncol=input$HHsize) * matrix(t(apply(input$kappa_draw, 1, function(x) ((x + 1)^(1 - input$gamma) - 1)/(1 - input$gamma))), ncol = input$HHsize)) * (input$R_draw > 0);
 		output_orig = output;
 		min_output = min(output[which(input$R_draw > 0)], na.rm=TRUE); 
@@ -458,7 +479,7 @@ U = function(input, income_effect=TRUE, diagnosis = FALSE) {
 		}
 
 		if (length(which(input$R_draw <= 0)) > 0) {
-			output = output + min_output; 
+			output = output + min(input$R_draw[which(input$R_draw <= 0)]); 
 		}
 
 		if (diagnosis) {
@@ -615,6 +636,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		}
 
 		R_draw[[1]] =  income_vec[1] - rowSums(theta_draw * kappa_draw[[1]])
+
 		income_effect = max(R_draw[[1]]) > 0
 	}
 
@@ -687,6 +709,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 		derivative_root_r = list()
 		for (j in 1:n_draw_halton) {
+			print(paste0('j = ', j))
 			# Full insurance: 
 			theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
 				output = qnorm(x * pnorm(-theta_bar[j,]/s_theta) + (1 - x)) * s_theta + theta_bar[j,] 
@@ -734,6 +757,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 			}
 
 			if (income_vec[1 + length(elig_member_index)] < 0) {
+				message('unable to afford; therefore root_r = 5')
 				root_r_vec[j] = 5;
 				prob_full_insured[j] = 0
 				if (derivative_r_threshold) {
@@ -756,6 +780,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 						output$prob_full_insured = 1;
 						output$derivative_r = list(); 
 					} else if (cara(u_1, 5) < cara(u_0, 5)) {
+						print('root_r = 5 here')
 						output$root_r_vec = 5; 
 						output$prob_full_insured = 0; 
 					} else {
@@ -1439,7 +1464,6 @@ uniroot_usr = function(f, interval_init) {
 				if (!(is.na(output$root))) {
 					if (output$f.root > 1e-2) {
 						message(paste0('root is not achieved despite appropriate value range. Stopping value is equal to ', output$f.root))
-						print(output)
 					}
 				}
 				
@@ -1607,7 +1631,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		income_vec = Income_net_premium[[hh_index]]
 	} 
 	
-	income_vec = income_vec + max(rowSums(theta_draw))
+	income_vec = income_vec 
 
 	income_effect = max(income_vec[1] - rowSums(theta_draw)) > 0
 
@@ -1728,8 +1752,6 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
 
 			if (temp_f(0) > 0) {
-				print(i)
-				stop()
 				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
 			}
 			wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
