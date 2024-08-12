@@ -3,7 +3,7 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 4;
+    numcores = 8;
   }
   job_index = as.integer(Sys.time());  
 } else {
@@ -219,6 +219,8 @@ tol = 1e-4
 
 pref_list = c('beta_omega', 'beta_delta', 'beta_gamma', 'sigma_omega', 'sigma_delta', 'sigma_gamma') 
 list_theta_var = c('beta_theta', 'beta_theta_ind', 'sigma_thetabar', 'sigma_theta')
+
+dir.create('../../householdbundling_estimate') 
 
 aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE) {
   param_trial_here = as.vector(unlist(x_transform[[1]]))
@@ -491,7 +493,7 @@ optim_f =  function(x_pref_theta) {
     print('--------------------')
     save_output[[iter]] <<- param_trial_here
     iter <<- iter + 1; 
-    saveRDS(save_output, file='./estimation/save_output.rds')
+    saveRDS(save_output, file='../../householdbundling_estimate/save_output_',job_index,'.rds')
     return(list(pref_moment[[1]] * 100 + output_theta[[1]] + output_r/length(f0$Em), pref_moment[[2]][index_theta_only] * 100 + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]/length(f0$Em), param_trial_here))
 }
 
