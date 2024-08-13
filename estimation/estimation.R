@@ -3,7 +3,7 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 14;
+    numcores = 4;
   }
   job_index = as.integer(Sys.time());  
 } else {
@@ -96,9 +96,9 @@ if (mini) {
   sample_identify_pref = sample(sample_identify_pref, length(sample_identify_pref), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 
-  n_draw_halton = 20;
+  n_draw_halton = 100;
 
-  n_halton_at_r = 20;
+  n_halton_at_r = 100;
 
   n_draw_gauss = 10;
 } else {
@@ -247,7 +247,7 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
   mat_YK = rbind(mat_YK, do.call('c', lapply(data_hh_list[sample_identify_pref], function(x) x$Income)))
   mat_YK = rbind(1, mat_YK)
 
-  mini_f = function(x_transform) {
+  mini_f = function(x_transform, return_long = FALSE) {
     if (Sys.info()[['sysname']] == 'Windows') {
       clusterExport(cl, 'x_transform',envir=environment())
       moment_ineligible_hh_output = parLapply(cl, data_hh_list_pref,function(mini_data) {
@@ -307,6 +307,15 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
 
     output[[3]] = do.call('cbind', output[[3]])
     output[[4]] = output_1
+
+    if (return_long) { 
+      output_mat = list();
+      output_mat[[1]] = output_1
+      output_mat[[2]] = output_2;
+      output_mat[[3]] = do.call('cbind', lapply(1:nrow(mat_YK), function(moment_index) 2*((output_2 - mat_M[,2]) * mat_YK[moment_index,]^2)))
+      output_mat[[4]] = do.call('cbind', lapply(1:nrow(mat_YK), function(moment_index) 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]^2)))
+      return(output_mat)
+    }
     return(output)
   }
 
@@ -330,8 +339,43 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
     mini_param$par[(length(mini_param$par)-2):length(mini_param$par)] = 1 - exp(mini_param$par[(length(mini_param$par)-2):length(mini_param$par)])
     return(mini_param)
   } else {
-    print(x_transform)
-    return(mini_f(x_transform))
+      output_short = mini_f(x_transform);
+      output_long_0 = mini_f(x_transform, return_long=TRUE);
+      for (i in c(x_transform[[2]]$beta_theta[1], x_transform[[2]]$beta_theta_ind[1], x_transform[[2]]$sigma_theta, x_transform[[2]]$sigma_thetabar)) {
+        new_x = as.vector(unlist(x_transform[[1]]))
+        new_x[i] = new_x[i] + 1e-3;
+        new_x_transform = transform_param(new_x, return_index = TRUE);
+        if (Sys.info()[['sysname']] == 'Windows') {
+          clusterExport(cl, c('x_transform', 'n_halton_at_r'),envir=environment())
+          data_hh_list_pref = parLapply(cl, sample_identify_pref,function(index) {
+            output = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=new_x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE),error=function(e) e)
+            return(output)
+          })
+          mat_YK = do.call('cbind', parLapply(cl, data_hh_list_pref, function(x) {
+                output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
+                return(output)
+              }))
+        } else {
+          data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=new_x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE), error=function(e) e), mc.cores=numcores)
+          mat_YK = do.call('cbind', mclapply(data_hh_list_pref, function(x) {
+                output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_halton)), x$income[1], colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_halton))*x$income[1])
+                return(output)
+              }, mc.cores=numcores))
+        }
+
+        output_long_1 = mini_f(new_x_transform, return_long=TRUE);
+        if (i == x_transform[[2]]$beta_theta[1]) {
+          output_short[[2]][x_transform[[2]]$beta_theta] = colSums(apply(X_ind_pref_with_year, 2, function(x) x * rowMeans(apply(output_long_0[[3]], 2, function(y) (y * (output_long_1[[1]] - output_long_0[[1]])/1e-3)))))
+           + colSums(apply(X_ind_pref_with_year, 2, function(x) x * rowMeans(apply(output_long_0[[4]], 2, function(y) (y * (output_long_1[[2]] - output_long_0[[2]])/1e-3)))));
+        } else if (i == x_transform[[2]]$beta_theta_ind[1]) {
+          output_short[[2]][x_transform[[2]]$beta_theta_ind] = colSums(apply(X_ind_pref, 2, function(x) x * rowMeans(apply(output_long_0[[3]], 2, function(y) (y * (output_long_1[[1]] - output_long_0[[1]])/1e-3)))))
+           + colSums(apply(X_ind_pref, 2, function(x) x * rowMeans(apply(output_long_0[[4]], 2, function(y) (y * (output_long_1[[2]] - output_long_0[[2]])/1e-3)))));
+        } else {
+          output_short[[2]][i] = sum(rowMeans(apply(output_long_0[[3]], 2, function(x) x * (output_long_1[[1]] - output_long_0[[1]])/1e-3))) + sum(rowMeans(apply(output_long_0[[4]], 2, function(x) x * (output_long_1[[2]] - output_long_0[[2]])/1e-3)))
+        }
+      }
+      
+      return(list(output_short[[1]], output_short[[2]]))
   }
 }
 
@@ -493,8 +537,8 @@ optim_f =  function(x_pref_theta) {
     print('--------------------')
     save_output[[iter]] <<- param_trial_here
     iter <<- iter + 1; 
-    saveRDS(save_output, file='../../householdbundling_estimate/save_output_',job_index,'.rds')
-    return(list(pref_moment[[1]] * 100 + output_theta[[1]] + output_r/length(f0$Em), pref_moment[[2]][index_theta_only] * 100 + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]/length(f0$Em), param_trial_here))
+    saveRDS(save_output, file=paste0('../../householdbundling_estimate/save_output_',job_index,'.rds'))
+    return(list(pref_moment[[1]]+ output_theta[[1]] + output_r/length(f0$Em), pref_moment[[2]][index_theta_only] + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]/length(f0$Em), param_trial_here))
 }
 
 
@@ -521,7 +565,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = Com_HH_list_index
+fit_sample = Vol_HH_list_index
 
 for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {
