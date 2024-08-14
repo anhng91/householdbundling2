@@ -1039,7 +1039,7 @@ grad_llh_xi = function(beta, data) {
 #' @export
 #'
 #' @examples
-#' identify_theta(sample_data_and_parameter[[2]], sample_data_and_parameter[[1]])
+#' 1_theta(sample_data_and_parameter[[2]], sample_data_and_parameter[[1]])
 #'
 #' 
 identify_theta = function(data_set, param, n_draw_halton = 1000) {
