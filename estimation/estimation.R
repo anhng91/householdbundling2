@@ -602,7 +602,7 @@ optim_f =  function(x_pref_theta) {
     current_output <<- pref_moment[[1]] + output_theta[[1]] + output_r/length(f0$Em)
     iter <<- iter + 1; 
     saveRDS(save_output, file=paste0('../../householdbundling_estimate/save_output_',job_index,'.rds'))
-    return(list(pref_moment[[1]] + output_theta[[1]] + output_r/length(f0$Em), pref_moment[[2]][index_theta_only]*100 + output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]/length(f0$Em), param_trial_here))
+    return(list(pref_moment[[1]] + output_theta[[1]] + output_r/length(f0$Em), pref_moment[[2]][index_theta_only]+ output_theta[[2]][index_theta_only] + r_derivative[index_theta_only]/length(f0$Em), param_trial_here))
 }
 
 
