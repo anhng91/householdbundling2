@@ -3,7 +3,7 @@ if (length(args)<2) {
   if (Sys.info()[['sysname']] == 'Windows') {
     numcores = 10;
   } else {
-    numcores = 14;
+    numcores = 8;
   }
   job_index = as.integer(Sys.time());  
 } else {
