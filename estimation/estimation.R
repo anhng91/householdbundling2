@@ -210,7 +210,7 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
 initial_param_trial = init_param
-initial_param_trial[x_transform[[2]]]$beta_theta_ind[1] = log(initial_param_trial[x_transform[[2]]]$beta_theta_ind[1])
+initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
 # initial_param_trial = rep(0, length(init_param))
 # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -2;
 # initial_param_trial[x_transform[[2]]$sigma_theta] = -1.4;
