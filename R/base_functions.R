@@ -544,7 +544,9 @@ m_fun = function(input, income_effect=TRUE) {
 #' @param sick_parameters a list produced from optim 
 #' @param xi_parameters a list produced from optim
 #' @param short if TRUE, does not return dataframe of the original data
-#' @param derivative_r_threshold logical value, TRUE if want to compute the derivative of the r threshold w.r.t household and individual parameters. 
+#' @param derivative_r_threshold logical value, TRUE if want to compute the derivative of the r threshold w.r.t household and individual parameters.
+#' @param derivative logical value, TRUE if want to compute derivative w.r.t theta parameters 
+#' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage. This does not take into account estimated preference parameters or unconditional distribution of health shocks. See `compute_expected_U_m` for the draws post-estimation of preference parameters and health shocks distribution.
 #' 
@@ -552,7 +554,7 @@ m_fun = function(input, income_effect=TRUE) {
 #'
 #' @examples
 #' household_draw_theta_kappa_Rdraw(1, sample_data_and_parameter$param, 1000, 10, sick_parameters_sample, xi_parameters_sample)
-household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE) {
+household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative=NA) {
 	set.seed(1);
 	tol = 1e-4;
 	data_hh_i = data_hh_list[[hh_index]]; 
@@ -679,6 +681,9 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 		for (i in 1:HHsize) { 
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * s_thetabar + halton_mat_list$household_random_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta; 
+			if (derivative) {
+				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i]
+			}
 		}
 
 		beta_omega = X_hh %*% param$beta_omega 
