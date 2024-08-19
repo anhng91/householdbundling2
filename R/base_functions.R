@@ -565,8 +565,8 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 	draw_p_xi_1 = X_ind %*% xi_parameters$par[(ncol(X_ind) + 1):(2*ncol(X_ind))]
 	p_0 = exp(draw_p_xi_0)/(1 + exp(draw_p_xi_0) + exp(draw_p_xi_1))
 	p_1 = exp(draw_p_xi_1)/(1 + exp(draw_p_xi_1) + exp(draw_p_xi_0))
-	sick_p = c(1/(1 + exp(X_ind %*% sick_parameters$par)))
-	halton_mat = randtoolbox::halton(n_draw_halton, HHsize * 6 + 2)
+	sick_p = 1 - c(1/(1 + exp(X_ind %*% sick_parameters$par)))
+	halton_mat = pnorm(rnorm(n_draw_halton * (HHsize * 6 + 2))) %>% matrix(nrow = n_draw_halton)
 	halton_mat_list = list()
 	halton_mat_list$household_random_factor = qnorm(halton_mat[,HHsize * 6 + 1]) ; 
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
@@ -576,7 +576,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 	upper_r = 5
 
 	for (i in 1:HHsize) {
-		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] >= sick_p[i])
+		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
 	}
 	halton_mat_list$gamma = (halton_mat[,(3 * HHsize + 1):(4 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$delta = (halton_mat[,(4 * HHsize + 1):(5 * HHsize)]) %>% matrix(ncol = HHsize);
@@ -628,9 +628,9 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 			random_xi_draws = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
 
-			# if (data_hh_i$M_expense[i] == 0 & data_hh_i$sick_dummy[i] == 1) {
-			# 	random_xi_draws = random_xi_draws * 0 + 1;
-			# }
+			if (data_hh_i$M_expense[i] == 0 & data_hh_i$sick_dummy[i] == 1) {
+				random_xi_draws = random_xi_draws * 0 + 1;
+			}
 			
 			kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws + 1 - random_xi_draws
 		}
@@ -1073,7 +1073,7 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 	names_input_vec = c('sigma_thetabar','mean_beta_theta', 'mean_beta_theta_ind', 'sigma_theta')
 	size_input_vec = c(1, HHsize, HHsize, 1)
 	halton_mat_list = list()
-	halton_mat = randtoolbox::halton(n_draw_halton, HHsize * 6 + 2)
+	halton_mat = pnorm(rnorm(n_draw_halton * (HHsize * 6 + 2))) %>% matrix(nrow = n_draw_halton)
 	halton_mat_list$individual_factor = qnorm(halton_mat[,1:HHsize]) %>% matrix(ncol = HHsize);
 	halton_mat_list$household_random_factor = qnorm(halton_mat[,HHsize * 6 + 1]) ; 
 
@@ -1318,8 +1318,8 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	draw_p_xi_1 = X_ind %*% xi_parameters$par[(ncol(X_ind) + 1):(2*ncol(X_ind))]
 	p_0 = exp(draw_p_xi_0)/(1 + exp(draw_p_xi_0) + exp(draw_p_xi_1))
 	p_1 = exp(draw_p_xi_1)/(1 + exp(draw_p_xi_1) + exp(draw_p_xi_0))
-	sick_p = c(1/(1 + exp(X_ind %*% sick_parameters$par)))
-	halton_mat = randtoolbox::halton(n_draw_halton, HHsize * 6 + 2)
+	sick_p = 1 - c(1/(1 + exp(X_ind %*% sick_parameters$par)))
+	halton_mat = pnorm(rnorm(n_draw_halton * (HHsize * 6 + 2))) %>% matrix(nrow = n_draw_halton)
 	halton_mat_list = list()
 	halton_mat_list$household_random_factor = qnorm(halton_mat[,HHsize * 6 + 1]) ; 
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
@@ -1328,7 +1328,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	halton_mat_list$sick = (halton_mat[,(2 * HHsize + 1):(3 * HHsize)]) %>% matrix(ncol = HHsize);
 
 	for (i in 1:HHsize) {
-		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] >= sick_p[i])
+		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
 	}
 	halton_mat_list$gamma = (halton_mat[,(3 * HHsize + 1):(4 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$delta = (halton_mat[,(4 * HHsize + 1):(5 * HHsize)]) %>% matrix(ncol = HHsize);

@@ -15,6 +15,7 @@ if (length(args)<2) {
 
 if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local') {
   mini=TRUE
+  numcores = 2; 
 } else {
   mini=FALSE
 }
@@ -100,7 +101,7 @@ if (mini) {
 
   n_draw_halton = 50;
 
-  n_halton_at_r = 50;
+  n_halton_at_r = 10;
 
   n_draw_gauss = 10;
 } else {
@@ -653,7 +654,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Vol_HH_list_index, 1000)
+fit_sample = sample(Com_HH_list_index, 5000)
 
 for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {

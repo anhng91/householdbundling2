@@ -1,6 +1,6 @@
 args = commandArgs(trailingOnly=TRUE)
 if (length(args)<2) { 
-  numcores = 4;  
+  numcores = 2;  
 } else {
   numcores = as.numeric(args[2]); 
 }
@@ -54,7 +54,12 @@ out_sample_index = lapply(1:length(data_hh_list), function(hh_index) {
 
 out_sample_index = out_sample_index[!(is.na(out_sample_index))] 
 
-Com_HH_list_index = Com_HH_list_index[!(is.na(Com_HH_list_index))]
+Com_HH_list_index = Com_HH_list_index[!(is.na(Com_HH_list_index))] 
+
+if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local') {
+	Com_HH_list_index = sample(Com_HH_list_index, 1000, replace=TRUE);
+	Vol_HH_list_index = sample(Vol_HH_list_index, 3000, replace=TRUE);
+}
 
 if (Sys.info()[['sysname']] == 'Windows') {
   numcores = 10; 
