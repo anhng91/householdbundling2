@@ -654,7 +654,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample(Com_HH_list_index, 5000)
+fit_sample = sample(Vol_HH_list_index, 5000)
 
 for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {

@@ -168,6 +168,7 @@ for (job_index in job_index_list) {
 					}))
 				return(output)}
 			if (Sys.info()[['sysname']] == 'Windows') {
+				clusterExport(cl, 'prem')
 				counterfactual_values_bd[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
 			} else {
 				counterfactual_values_bd[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
@@ -199,6 +200,7 @@ for (job_index in job_index_list) {
 				}))	
 				return(output)}
 			if (Sys.info()[['sysname']] == 'Windows') {
+				clusterExport(cl, 'prem')
 				counterfactual_values_pb[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
 			} else {
 				counterfactual_values_pb[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
