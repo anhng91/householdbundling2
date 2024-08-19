@@ -628,9 +628,9 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 			random_xi_draws = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
 
-			if (data_hh_i$M_expense[i] == 0 & data_hh_i$sick_dummy[i] == 1) {
-				random_xi_draws = random_xi_draws * 0 + 1;
-			}
+			# if (data_hh_i$M_expense[i] == 0 & data_hh_i$sick_dummy[i] == 1) {
+			# 	random_xi_draws = random_xi_draws * 0 + 1;
+			# }
 			
 			kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws + 1 - random_xi_draws
 		}

@@ -1,6 +1,6 @@
 args = commandArgs(trailingOnly=TRUE)
 if (length(args)<3) { 
-  numcores = 6;  
+  numcores = 4;  
   contraction_variance = 1;
   within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE);
   file_name_label = paste0('contraction_variance_', contraction_variance, '_full_heterogeneity')
@@ -75,12 +75,6 @@ list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))]
 list_p1 = seq(0, 0.06, by = 0.005) 
 list_p2 = seq(0, 1, by = 0.05)
 
-data_2012 = benchmark %>% filter(id %in% list_hh_2012);
-
-budget_2012 = data_2012 %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% group_modify(function(data_hh_i, ...) {
-	return(data.frame(net_budget = Income_net_premium[[data_hh_i$id[1]]][1] - Income_net_premium[[data_hh_i$id[1]]][1 + sum(data_hh_i$vol_sts_counterfactual)] - sum(data_hh_i$cost_to_insurance)/unit_inc))
-},.keep=TRUE) %>% ungroup() %>% pull(net_budget) %>% sum()
-
 
 if (Sys.info()[['sysname']] == 'Windows') {
   numcores = 10; 
@@ -91,7 +85,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 }
 
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
-iter_list = unique(data_2012$iter);
+iter_list = c(1:1);
 
 bd_output = list()
 pb_output = list()

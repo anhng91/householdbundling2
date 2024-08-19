@@ -290,7 +290,7 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
     output[[3]] = list();
 
     for (moment_index in c(1:nrow(mat_YK))) {
-      output[[3]][[moment_index]] = ((output_1 - mat_M[,1]) * mat_YK[moment_index,])^2
+      output[[3]][[moment_index]] = ((output_1 - mat_M[,1]) * mat_YK[moment_index,])^2 
       moment[moment_index] = mean(output[[3]][[moment_index]]); 
       d_moment[[moment_index]] = 2*((output_1 - mat_M[,1]) * mat_YK[moment_index,]^2);
     }
@@ -653,7 +653,7 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = Vol_HH_list_index
+fit_sample = sample(Vol_HH_list_index, 1000)
 
 for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {

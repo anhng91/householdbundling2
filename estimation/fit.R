@@ -68,6 +68,9 @@ job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_
 
 iter_list = c(1:1)
 
+fit_values_all = NULL; 
+no_heterogeneity_values_all = NULL; 
+
 for (job_index in job_index_list) {
 	print(paste0('computing at index = ', job_index))
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
@@ -174,7 +177,18 @@ for (job_index in job_index_list) {
 
 		fit_values = rbind(fit_values, out_sample_values); 
 	}
+	if (is.null(fit_values_all)) {
+		fit_values_all = fit_values; 
+		no_heterogeneity_values_all = no_heterogeneity_values;
+	} else {
+		fit_values_all = rbind(fit_values_all, fit_values);
+		no_heterogeneity_values_all = rbind(no_heterogeneity_values_all, no_heterogeneity_values);
+	}
 }
+
+fit_values = fit_values_all; 
+no_heterogeneity_values = no_heterogeneity_values_all;
+
 fit_values$Y2 <- as.numeric(Hmisc::cut2(fit_values$Y, g=5))
 observed_vol_data = do.call('rbind', data_hh_list[Vol_HH_list_index]); observed_vol_data$fit_type = 2; 
 observed_com_data = do.call('rbind', data_hh_list[Com_HH_list_index]); observed_com_data$fit_type = 1; 
