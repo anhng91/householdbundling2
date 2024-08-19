@@ -116,6 +116,10 @@ for (job_index in job_index_list) {
 			return(income_vec)
 		}
 
+		if (Sys.info()[['sysname']] == 'Windows') {
+		  clusterExport(cl,c('counterfactual_premium'))
+		}
+
 		bd_prem = list()
 		pb_prem = list()
 		prem_id = 0; 
