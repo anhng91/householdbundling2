@@ -73,6 +73,10 @@ job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_
 
 iter_list = c(1:1)
 
+if (Sys.info()[['sysname']] == 'Windows') {
+  clusterExport(cl,c('iter_list'))
+}
+
 fit_values_all = NULL; 
 no_heterogeneity_values_all = NULL; 
 

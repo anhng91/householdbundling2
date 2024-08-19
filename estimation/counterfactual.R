@@ -77,7 +77,7 @@ list_p2 = seq(0, 1, by = 0.05)
 
 
 if (Sys.info()[['sysname']] == 'Windows') {
-  numcores = 10; 
+  numcores = numcores; 
   cl = makeCluster(numcores);
   clusterEvalQ(cl, library('tidyverse'))
   clusterEvalQ(cl, library('familyenrollment'))
@@ -86,6 +86,10 @@ if (Sys.info()[['sysname']] == 'Windows') {
 
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
 iter_list = c(1:1);
+
+if (Sys.info()[['sysname']] == 'Windows') {
+  clusterExport(cl,c('iter_list'))
+}
 
 bd_output = list()
 pb_output = list()
@@ -144,7 +148,7 @@ for (job_index in job_index_list) {
 
 		for (prem in bd_prem) {
 			print_index = print_index + 1; print(paste0('computing bundle discount premium index ', print_index));
-			counterfactual_values_bd[[job_index]][[print_index]] = mclapply(c(list_hh_2012), function(id) {
+			f_id = function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
 				output = do.call('rbind', lapply(iter_list, function(iter) {
 					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, income_vec = income_vec))
@@ -158,7 +162,13 @@ for (job_index in job_index_list) {
 					output$job_index = job_index
 					return(output) 
 					}))
-				return(output)}, mc.cores=numcores)
+				return(output)}
+			if (Sys.info()[['sysname']] == 'Windows') {
+				counterfactual_values_bd[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
+			} else {
+				counterfactual_values_bd[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
+			}
+			
 			counterfactual_values_bd[[job_index]][[print_index]] = do.call('rbind', counterfactual_values_bd[[job_index]][[print_index]])
 			bd_output[[job_index]]$surplus = c(bd_output[[job_index]]$surplus, counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(wtp) %>% sum(na.rm = TRUE) - sum(counterfactual_values_bd[[job_index]][[print_index]] %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal))) 
 			bd_output[[job_index]]$budget = c(bd_output[[job_index]]$budget, sum(counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) - (counterfactual_values_bd[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum()))
@@ -168,7 +178,7 @@ for (job_index in job_index_list) {
 		print_index = 0; 
 		for (prem in pb_prem) {
 			print_index = print_index + 1; print(paste0('computing pure bundling premium index ', print_index));
-			counterfactual_values_pb[[job_index]][[print_index]] = mclapply(c(list_hh_2012), function(id) {
+			fid = function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
 				output = do.call('rbind', lapply(iter_list, function(iter) {
 				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}, income_vec = income_vec)
@@ -183,7 +193,12 @@ for (job_index in job_index_list) {
 				output$job_index = job_index
 				return(output)
 				}))	
-				return(output)}, mc.cores=numcores)
+				return(output)}
+			if (Sys.info()[['sysname']] == 'Windows') {
+				counterfactual_values_pb[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
+			} else {
+				counterfactual_values_pb[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
+			}
 			counterfactual_values_pb[[job_index]][[print_index]] = do.call('rbind', counterfactual_values_pb[[job_index]][[print_index]]) 
 			pb_output[[job_index]]$surplus = c(pb_output[[job_index]]$surplus, counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(wtp) %>% sum(na.rm=TRUE) - sum(counterfactual_values_pb[[job_index]][[print_index]] %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(premium_optimal)))
 			pb_output[[job_index]]$budget = c(pb_output[[job_index]]$budget, sum(counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(premium_optimal)) - (counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum()))
