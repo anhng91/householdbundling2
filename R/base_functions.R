@@ -611,7 +611,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		for (i in 1:HHsize) {
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * s_thetabar + halton_mat_list$household_random_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta; 
 			
-			theta_draw[, i] = qnorm(halton_mat_list$theta[, i] * pnorm(-theta_bar[, i]/s_theta) + (1 - halton_mat_list$theta[, i])) * s_theta + theta_bar[, i]
+			theta_draw[, i] = qnorm(1 - (halton_mat_list$theta[, i] * (1 - pnorm(theta_bar[, i]/s_theta)) + (1 - halton_mat_list$theta[, i])),  lower.tail=FALSE) * s_theta + theta_bar[, i]
 
 			theta_draw[, i] = lapply(theta_draw[, i], function(x) {
 				x[which(is.na(x) | is.infinite(x) | x < 0)] = 0
@@ -716,13 +716,13 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		for (j in 1:n_draw_halton) {
 			# Full insurance: 
 			theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-				output = qnorm(x * pnorm(-theta_bar[j,]/s_theta) + (1 - x)) * s_theta + theta_bar[j,] 
+				output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
 				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 				return(output)
 			})), ncol=HHsize) * halton_mat_list$sick
 
 			theta_draw_realized_sick = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-				output = qnorm(x * pnorm(-theta_bar[j,]/s_theta) + (1 - x)) * s_theta + theta_bar[j,] * data_hh_i$sick_dummy 
+				output = (qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
 				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 				return(output)
 			})), ncol=HHsize) 

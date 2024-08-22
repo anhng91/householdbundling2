@@ -4,6 +4,7 @@ if (length(args)<3) {
   contraction_variance = 1;
   within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE);
   file_name_label = paste0('contraction_variance_', contraction_variance, '_full_heterogeneity')
+  job_index_iter = 1; 
 } else {
   numcores = as.numeric(args[1]); 
   contraction_variance = as.numeric(args[2]);
@@ -14,6 +15,7 @@ if (length(args)<3) {
   	within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=TRUE);
   	file_name_label = paste0('contraction_variance_', contraction_variance, 'no_pref_heterogeneity')
   }
+  job_index_iter = as.numeric(args[3])
 }
 
 library(knitr)
@@ -97,7 +99,7 @@ pb_output = list()
 counterfactual_values_bd = list();
 counterfactual_values_pb = list();
 
-for (job_index in job_index_list) {
+for (job_index in job_index_list[job_index_iter]) {
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		transform_param_final = transform_param(param_final$other)
@@ -223,8 +225,12 @@ bd_output = bd_output %>% mutate(p_ratio = p2/p1);
 bd_output$p_ratio[is.nan(bd_output$p_ratio)] = 1; 
 pb_output = cbind(pb_output, pb_premium_vector); 
 
-saveRDS(bd_output, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'.rds'))
-saveRDS(pb_output, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'.rds'))
+saveRDS(bd_output, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index_iter,'.rds'))
+saveRDS(pb_output, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index_iter,'.rds'))
+
+
+saveRDS(counterfactual_values_bd, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index_iter,'.rds'))
+saveRDS(counterfactual_values_pb, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index_iter,'.rds'))
 
 budget_2012_new = (bd_output %>% filter(p1 == 0.045 & p2 == 1.9 * 0.045) %>% pull(budget) %>% sum())
 
