@@ -187,13 +187,14 @@ for (job_index in job_index_list) {
 		out_sample_values$job_index = job_index; 
 
 		fit_values = rbind(fit_values, out_sample_values); 
-	}
-	if (is.null(fit_values_all)) {
-		fit_values_all = fit_values; 
-		no_heterogeneity_values_all = no_heterogeneity_values;
-	} else {
-		fit_values_all = rbind(fit_values_all, fit_values);
-		no_heterogeneity_values_all = rbind(no_heterogeneity_values_all, no_heterogeneity_values);
+
+		if (is.null(fit_values_all)) {
+			fit_values_all = fit_values; 
+			no_heterogeneity_values_all = no_heterogeneity_values;
+		} else {
+			fit_values_all = rbind(fit_values_all, fit_values);
+			no_heterogeneity_values_all = rbind(no_heterogeneity_values_all, no_heterogeneity_values);
+		}
 	}
 }
 

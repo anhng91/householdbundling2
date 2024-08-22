@@ -17,7 +17,7 @@ if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local') {
   mini=TRUE
   numcores = 4; 
 } else {
-  mini=FALSE
+  mini=TRUE
 }
 
 options("install.lock"=FALSE)
