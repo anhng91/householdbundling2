@@ -1,6 +1,6 @@
 args = commandArgs(trailingOnly=TRUE)
 if (length(args)<2) { 
-  numcores = 10;  
+  numcores = 8;  
 } else {
   numcores = as.numeric(args[2]); 
 }
@@ -22,7 +22,7 @@ library(familyenrollment)
 
 Vol_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
   data = data_hh_list[[hh_index]]; 
-  if (nrow(data) > nrow(data %>% filter(Bef_sts + Com_sts + Std_w_ins == 1)) & !(data$Year[1] == 2006 & data$HHsize_s[1] > 1)) {
+  if (nrow(data) > nrow(data %>% filter(Bef_sts + Com_sts + Std_w_ins == 1)) & data$Year[1] == 2012 & !(data$Year[1] == 2006 & data$HHsize_s[1] > 1)) {
     return(hh_index);
   }
   else {
@@ -34,7 +34,7 @@ Vol_HH_list_index = Vol_HH_list_index[!(is.na(Vol_HH_list_index))]
 
 Com_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
   data = data_hh_list[[hh_index]]; 
-  if (0 == nrow(data %>% filter(Bef_sts + Com_sts + Std_w_ins == 0))) {
+  if (0 == nrow(data %>% filter(Bef_sts + Com_sts + Std_w_ins == 0)) & data$Year[1] == 2012) {
     return(hh_index);
   }
   else {

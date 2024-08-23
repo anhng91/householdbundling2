@@ -72,7 +72,7 @@ Com_HH_list_index = Com_HH_list_index[!(is.na(Com_HH_list_index))]
 benchmark = readRDS('../../Obj_for_manuscript/fit_values.rds')
 
 list_hh_2012 = unlist(lapply(1:length(data_hh_list), function(hh_index) ifelse(data_hh_list[[hh_index]]$Year[1] == 2012 & data_hh_list[[hh_index]]$HHsize_s[1] == 2, hh_index, NA)))
-list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))]
+list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))] %>% sample(1000)
 
 list_p1 = seq(0, 0.06, by = 0.005) 
 list_p2 = seq(0, 1, by = 0.05)
@@ -152,12 +152,11 @@ for (job_index in job_index_list[job_index_iter]) {
 		counterfactual_values_bd[[job_index]] = list();
 		counterfactual_values_pb[[job_index]] = list();
 
-		for (prem in bd_prem) {
-			print_index = print_index + 1; print(paste0('computing bundle discount premium index ', print_index));
+		f_prem = function(prem, constraint_function, iter_list, job_index, return_long = FALSE) {
 			f_id = function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
 				output = do.call('rbind', lapply(iter_list, function(iter) {
-					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, income_vec = income_vec))
+					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance))
 					output$iter = iter; 
 					output$Y = data_hh_list[[id]]$Income; 
 					output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -170,67 +169,48 @@ for (job_index in job_index_list[job_index_iter]) {
 					}))
 				return(output)}
 			if (Sys.info()[['sysname']] == 'Windows') {
-				clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index'))
-				counterfactual_values_bd[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
+				clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
+				counterfactual_values_bd = parLapply(cl, c(list_hh_2012), f_id)
 			} else {
-				counterfactual_values_bd[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
+				counterfactual_values_bd = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
 			}
-			
-			counterfactual_values_bd[[job_index]][[print_index]] = do.call('rbind', counterfactual_values_bd[[job_index]][[print_index]])
-			bd_output[[job_index]]$surplus = c(bd_output[[job_index]]$surplus, counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(wtp) %>% sum(na.rm = TRUE) - sum(counterfactual_values_bd[[job_index]][[print_index]] %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal))) 
-			bd_output[[job_index]]$budget = c(bd_output[[job_index]]$budget, sum(counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) - (counterfactual_values_bd[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum()))
-			bd_output[[job_index]]$demand = c(bd_output[[job_index]]$demand, sum(counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(N_vol))/sum(counterfactual_values_bd[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(HHsize_s)))
+			counterfactual_values_bd = do.call('rbind', counterfactual_values_bd)
+			bd_output = list()
+			bd_output$surplus = counterfactual_values_bd  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(wtp) %>% sum(na.rm = TRUE) - sum(counterfactual_values_bd %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) 
+			bd_output$budget = sum(counterfactual_values_bd  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) - (counterfactual_values_bd %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum())
+			bd_output$cost = (counterfactual_values_bd %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum())
+			bd_output$demand = sum(counterfactual_values_bd  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(N_vol))/sum(counterfactual_values_bd  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(HHsize_s))
+			bd_output$p1 = prem[[2]][1];
+			bd_output$p2 = prem[[2]][1];
+			if (return_long) {
+				return(counterfactual_values_bd)
+			} else {
+				return(list(bd_output))
+			}
 		}
 
-		print_index = 0; 
-		for (prem in pb_prem) {
-			print_index = print_index + 1; print(paste0('computing pure bundling premium index ', print_index));
-			fid = function(id) {
-				income_vec = counterfactual_premium(prem, 'bundle discount', id)
-				output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}, income_vec = income_vec)
-				output = as.data.frame(output)
-				output$Y = data_hh_list[[id]]$Income; 
-				output$m_observed = data_hh_list[[id]]$M_expense; 
-				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
-				output$id = id
-				output$premium_optimal = income_vec[1] - income_vec[sum(output$vol_sts_counterfactual) + 1]
-				output$iter = iter; 
-				output$HHsize_s = data_hh_list[[id]]$HHsize_s; 
-				output$job_index = job_index
-				return(output)
-				}))	
-				return(output)}
-			if (Sys.info()[['sysname']] == 'Windows') {
-				clusterExport(cl, c('prem', 'param_final','transform_param_final', 'job_index'))
-				counterfactual_values_pb[[job_index]][[print_index]] = parLapply(cl, c(list_hh_2012), f_id)
-			} else {
-				counterfactual_values_pb[[job_index]][[print_index]] = mclapply(c(list_hh_2012), f_id, mc.cores=numcores)
-			}
-			counterfactual_values_pb[[job_index]][[print_index]] = do.call('rbind', counterfactual_values_pb[[job_index]][[print_index]]) 
-			pb_output[[job_index]]$surplus = c(pb_output[[job_index]]$surplus, counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(wtp) %>% sum(na.rm=TRUE) - sum(counterfactual_values_pb[[job_index]][[print_index]] %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(premium_optimal)))
-			pb_output[[job_index]]$budget = c(pb_output[[job_index]]$budget, sum(counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% slice(1) %>% ungroup() %>% pull(premium_optimal)) - (counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% pull(cost_to_insurance) %>% sum()))
-			pb_output[[job_index]]$demand = c(pb_output[[job_index]]$demand, sum(counterfactual_values_pb[[job_index]][[print_index]] %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(N_vol))/sum(counterfactual_values_pb[[job_index]][[print_index]]  %>% filter(Com_sts + Bef_sts + Std_w_ins == 0) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(HHsize_s)))
-		}	
+		constraint_function = function(x) x;
+		bd_output[[job_index]] = do.call('rbind', lapply(bd_prem, function(prem) f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)));
+
+		constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
+		pb_output[[job_index]] = do.call('rbind', lapply(bd_prem, function(prem) f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)));
+
 	}
 }
 
 
 bd_output = do.call('rbind', lapply(bd_output[job_index_list], function(x) as.data.frame(x)))
 pb_output = do.call('rbind', lapply(pb_output[job_index_list], function(x) as.data.frame(x)))
-pb_premium_vector = as.data.frame(do.call('rbind',lapply(pb_prem, function(x) x[[2]]))); names(pb_premium_vector) = c('p1','p2')
-bd_premium_vector = as.data.frame(do.call('rbind',lapply(bd_prem, function(x) x[[2]]))); names(bd_premium_vector) = c('p1','p2')
-bd_output = cbind(bd_output, bd_premium_vector); names(bd_output)[c(4,5)] = c('p1','p2')
 bd_output = bd_output %>% mutate(p_ratio = p2/p1); 
 bd_output$p_ratio[is.nan(bd_output$p_ratio)] = 1; 
-pb_output = cbind(pb_output, pb_premium_vector); 
 
 saveRDS(bd_output, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index_iter,'.rds'))
 saveRDS(pb_output, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index_iter,'.rds'))
 
+stop();
 
-saveRDS(counterfactual_values_bd, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index_iter,'.rds'))
-saveRDS(counterfactual_values_pb, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index_iter,'.rds'))
+saveRDS(counterfactual_values_bd, file = paste0('../../Obj_for_manuscript/ind_bd_output', file_name_label,'_',job_index_iter,'.rds'))
+saveRDS(counterfactual_values_pb, file = paste0('../../Obj_for_manuscript/ind_pb_output', file_name_label,'_',job_index_iter,'.rds'))
 
 budget_2012_new = (bd_output %>% filter(p1 == 0.045 & p2 == 1.9 * 0.045) %>% pull(budget) %>% sum())
 
