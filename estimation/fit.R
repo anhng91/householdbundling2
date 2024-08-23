@@ -1,6 +1,6 @@
 args = commandArgs(trailingOnly=TRUE)
 if (length(args)<2) { 
-  numcores = 2;  
+  numcores = 10;  
 } else {
   numcores = as.numeric(args[2]); 
 }
@@ -17,7 +17,7 @@ library(randtoolbox)
 library(Hmisc)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 Vol_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
@@ -69,8 +69,8 @@ if (Sys.info()[['sysname']] == 'Windows') {
   clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index'))
 }
 	
-# job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
-job_index_list = c('1724060072')
+job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
+# job_index_list = c('1724060072')
 
 iter_list = c(1:1)
 
@@ -214,56 +214,7 @@ fit_values = fit_values %>% mutate_at(c('m_observed', 'average_theta', 'wtp', 'c
 observed_data = observed_data %>% mutate_at(c('M_expense', 'Income'), function(x) x * unit_inc)
 
 fit_values = fit_values %>% group_by(id, job_index, iter) %>% mutate(memind = 1:n()) %>% ungroup()
-fit_values_monly_all = NULL; 
 
-for (job_index in job_index_list) {
-	print(paste0('computing at index = ', job_index))
-	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
-		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
-		transform_param_final = transform_param(param_final$other)
-
-		f_id = function(id) {
-			output = do.call('rbind', lapply(iter_list, function(iter) {
-				if (id %in% Vol_HH_list_index) {
-					output_all = tryCatch(household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1))
-					output = list();
-					output$m = colMeans(output_all$m)
-				} else {
-					output_all = moment_ineligible_hh(household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, short=FALSE), transform_param_final)
-					output = list();
-					output$m = output_all[[1]]
-				}
-				output = as.data.frame(output)
-				output$id = id; 
-				output$iter = iter; 
-				return(output)
-			}))
-			return(output)
-		}
-		if (Sys.info()[['sysname']] == 'Windows') {
-		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw'))
-		  fit_values_monly = parLapply(cl, c(Vol_HH_list_index, Com_HH_list_index), f_id)
-		} else {
-			fit_values_monly = mclapply(c(Vol_HH_list_index, Com_HH_list_index), f_id, mc.cores = numcores)
-		}
-		if (is.null(fit_values_monly)) {
-			fit_values_monly_all = do.call('rbind', fit_values_monly)
-			fit_values_monly_all$job_index = job_index
-		} else {
-			fit_values_monly = do.call('rbind', fit_values_monly)
-			fit_values_monly$job_index = job_index
-			fit_values_monly_all = rbind(fit_values_monly_all, fit_values_monly)
-		}
-
-	}
-}
-
-
-fit_values_monly_all = fit_values_monly_all %>% group_by(id, job_index, iter) %>% mutate(memind = 1:n()) %>% ungroup()
-
-fit_values_monly_all$m_expected = fit_values_monly$m;
-
-fit_values = fit_values %>% left_join(fit_values_monly_all %>% select(m_expected, id, job_index, iter, memind))
 
 if (!(dir.exists('../../Obj_for_manuscript/'))) {
 	dir.create('../../Obj_for_manuscript/')
