@@ -719,7 +719,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 				output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
 				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 				return(output)
-			})), ncol=HHsize) * halton_mat_list$sick
+			})), ncol=HHsize) * halton_mat_list$sick[j,]
 
 			theta_draw_realized_sick = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
 				output = (qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
@@ -737,106 +737,129 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 				return(x)
 			}), ncol=HHsize)
 
-			for (i in 1:HHsize) {
-				kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j,i]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws[,i] + 1 - random_xi_draws[,i]
-			}
+			max_theta = apply(theta_draw,2, max); 
 
-			kappa_draw_fullinsured = kappa_draw[[1]] 
+			m0_index = which(max_theta == 0)
 
-			kappa_draw_optimal = kappa_draw[[1]]
+			elig_member_index_positive = setdiff(elig_member_index, m0_index)
 
-			kappa_draw_deviate = list()
-			R_deviate = list()
-			for (i in elig_member_index) {
-				if (data_hh_i$Vol_sts[i] == 0) {
-					kappa_draw_optimal[,i] = 1;
-				} 
-			}
-
-			
-
-
-			for (i in elig_member_index) {
-				kappa_draw_deviate[[i]] = kappa_draw_optimal; 
-				if (data_hh_i$Vol_sts[i] == 0) {
-					kappa_draw_deviate[[i]][,i] = kappa_draw_fullinsured[,i];
+			if (length(elig_member_index_positive) == 0) {
+				if (sum(data_hh_i$Vol_sts) == 0) {
+					upper_bound_vec[j] = 5;
+					lower_bound_vec[j] = 0;
 				} else {
-					kappa_draw_deviate[[i]][,i] = 1;
+					upper_bound_vec[j] = 5; 
+					lower_bound_vec[j] = 0; 
 				}
-			}
-
-			R_optimal = income_vec[data_hh_i$N_vol[1] + 1] - rowSums(theta_draw * kappa_draw_optimal);
-			R_optimal_realized_sick = income_vec[data_hh_i$N_vol[1] + 1] - rowSums(theta_draw_realized_sick * kappa_draw_optimal);
-			for (i in elig_member_index) {
-				if (data_hh_i$Vol_sts[i] == 0) {
-					R_deviate[[i]] = income_vec[data_hh_i$N_vol[1] + 2] - rowSums(theta_draw * kappa_draw_deviate[[i]]);
-				} else {
-					R_deviate[[i]] = income_vec[data_hh_i$N_vol[1]] - rowSums(theta_draw * kappa_draw_deviate[[i]]);
-				}
-				 
-			}
-
-			income_effect = max(income_vec[1] - rowSums(theta_draw)) > 0
-
-			m[j,] = colMeans(m_fun(list(theta_draw = theta_draw_realized_sick, R_draw = R_optimal_realized_sick, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], omega = omega[j], HHsize = HHsize), income_effect = income_effect)$oop)
-
-			U_optimal = U(list(R_draw = R_optimal, omega = omega[j], theta_draw = theta_draw, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], HHsize = HHsize), income_effect)  
-
-
-
-			cara = function(x,r) {
-				if (r != 0) {
-					return(mean((1-exp(-r * x))/r, na.rm=TRUE))
-				} else {
-					return(mean(x, na.rm=TRUE))
-				}
-			}
-
-			find_threshold_r = function(u_1, u_0) {
-				# u_1 is the option with more insurance coverage
-				output = list()
-
-				if (cara(u_1, 0) > cara(u_0, 0)) {
-					output$root_r_vec = 0;
-					output$prob_full_insured = 1;
-					output$derivative_r = list(); 
-				} else if (cara(u_1, 5) < cara(u_0, 5)) {
-					output$root_r_vec = 5; 
-					output$prob_full_insured = 0; 
-				} else {
-					output$root_r_vec = uniroot_usr(function(r) cara(u_1,r) - cara(u_0,r), c(0,5))$root
-					output$prob_full_insured = (pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(output$root_r_vec, mean = beta_r, sd = exp(param$sigma_r)))/(pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(0, mean = beta_r, sd = exp(param$sigma_r)))
-				}
-				return(output)
-			}
-
-			U_deviate = list()
-			upper_bound = NULL; 
-			lower_bound = NULL; 
-	
-
-			for (i in elig_member_index) {
-				U_deviate[[i]] = U(list(R_draw = R_deviate[[i]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw_deviate[[i]]),income_effect)
 				
-				if (data_hh_i$Vol_sts[i] == 1){
-					output = list()
-					output$root_r_vec = find_threshold_r(U_optimal, U_deviate[[i]])$root_r_vec 
-					lower_bound = c(lower_bound, output$root_r_vec);
-				} else {
-					output = list()
-					output$root_r_vec = find_threshold_r(U_deviate[[i]], U_optimal)$root_r_vec 
-					upper_bound = c(upper_bound, output$root_r_vec);
+			} else {
+				for (i in 1:HHsize) {
+					kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j,i]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws[,i] + 1 - random_xi_draws[,i]
 				}
+
+				kappa_draw_fullinsured = kappa_draw[[1]] 
+
+				kappa_draw_optimal = kappa_draw[[1]]
+
+				kappa_draw_deviate = list()
+				R_deviate = list()
+				for (i in elig_member_index) {
+					if (data_hh_i$Vol_sts[i] == 0) {
+						kappa_draw_optimal[,i] = 1;
+					} 
+				}
+
+				for (i in elig_member_index) {
+					kappa_draw_deviate[[i]] = kappa_draw_optimal; 
+					if (data_hh_i$Vol_sts[i] == 0) {
+						kappa_draw_deviate[[i]][,i] = kappa_draw_fullinsured[,i];
+					} else {
+						kappa_draw_deviate[[i]][,i] = 1;
+					}
+				}
+
+				R_optimal = income_vec[data_hh_i$N_vol[1] + 1] - rowSums(theta_draw * kappa_draw_optimal);
+				R_optimal_realized_sick = income_vec[data_hh_i$N_vol[1] + 1] - rowSums(theta_draw_realized_sick * kappa_draw_optimal);
+				for (i in elig_member_index) {
+					if (data_hh_i$Vol_sts[i] == 0) {
+						R_deviate[[i]] = income_vec[data_hh_i$N_vol[1] + 2] - rowSums(theta_draw * kappa_draw_deviate[[i]]);
+					} else {
+						R_deviate[[i]] = income_vec[data_hh_i$N_vol[1]] - rowSums(theta_draw * kappa_draw_deviate[[i]]);
+					}
+					 
+				}
+
+				income_effect = max(income_vec[1] - rowSums(theta_draw)) > 0
+
+				m[j,] = colMeans(m_fun(list(theta_draw = theta_draw_realized_sick, R_draw = R_optimal_realized_sick, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], omega = omega[j], HHsize = HHsize), income_effect = income_effect)$oop)
+
+				U_optimal = U(list(R_draw = R_optimal, omega = omega[j], theta_draw = theta_draw, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], HHsize = HHsize), income_effect)  
+
+
+
+				cara = function(x,r) {
+					if (r != 0) {
+						return(mean((1-exp(-r * x))/r, na.rm=TRUE))
+					} else {
+						return(mean(x, na.rm=TRUE))
+					}
+				}
+
+				find_threshold_r = function(u_1, u_0) {
+					# u_1 is the option with more insurance coverage
+					output = list()
+
+					if (cara(u_1, 0) > cara(u_0, 0)) {
+						output$root_r_vec = 0;
+						output$prob_full_insured = 1;
+						output$derivative_r = list(); 
+					} else if (cara(u_1, 5) < cara(u_0, 5)) {
+						output$root_r_vec = 5; 
+						output$prob_full_insured = 0; 
+					} else {
+						output$root_r_vec = uniroot_usr(function(r) cara(u_1,r) - cara(u_0,r), c(0,5))$root
+						output$prob_full_insured = (pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(output$root_r_vec, mean = beta_r, sd = exp(param$sigma_r)))/(pnorm(5, mean = beta_r, sd = exp(param$sigma_r)) - pnorm(0, mean = beta_r, sd = exp(param$sigma_r)))
+					}
+					return(output)
+				}
+
+				U_deviate = list()
+				upper_bound = NULL; 
+				lower_bound = NULL; 
+		
+
+				for (i in elig_member_index) {
+					if (i %in% elig_member_index_positive) {
+						if (data_hh_i$Vol_sts[i] == 1) {
+							lower_bound = c(lower_bound, 5); 
+						} else {
+							upper_bound = c(upper_bound, 0);
+						}
+					} else {
+						U_deviate[[i]] = U(list(R_draw = R_deviate[[i]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw_deviate[[i]]),income_effect)
+					
+						if (data_hh_i$Vol_sts[i] == 1){
+							output = list()
+							output$root_r_vec = find_threshold_r(U_optimal, U_deviate[[i]])$root_r_vec 
+							lower_bound = c(lower_bound, output$root_r_vec);
+						} else {
+							output = list()
+							output$root_r_vec = find_threshold_r(U_deviate[[i]], U_optimal)$root_r_vec 
+							upper_bound = c(upper_bound, output$root_r_vec);
+						}
+					}
+				}
+
+				upper_bound = ifelse(length(upper_bound) == 0, 5, min(upper_bound))
+				lower_bound = ifelse(length(lower_bound) == 0, 0, max(lower_bound))
+
+				if (lower_bound > upper_bound) {
+					upper_bound = lower_bound;
+				}	
+				upper_bound_vec[j] = upper_bound;
+				lower_bound_vec[j] = lower_bound;
 			}
 
-			upper_bound = ifelse(length(upper_bound) == 0, 5, min(upper_bound))
-			lower_bound = ifelse(length(lower_bound) == 0, 0, max(lower_bound))
-
-			if (lower_bound > upper_bound) {
-				upper_bound = lower_bound;
-			}	
-			upper_bound_vec[j] = upper_bound;
-			lower_bound_vec[j] = lower_bound;
 		}
 	}
 

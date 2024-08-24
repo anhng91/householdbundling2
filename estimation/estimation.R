@@ -97,7 +97,7 @@ sample_index = sample(1:length(data_hh_list), length(data_hh_list), replace=TRUE
 sample_r_theta = Vol_HH_list_index
 if (mini) {
   message('estimating in mini mode')
-  sample_r_theta = sample(sample_r_theta, 1000, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 100, replace=TRUE)
   sample_identify_pref = sample(sample_identify_pref, 3000, replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 
@@ -570,11 +570,11 @@ optim_f =  function(x_pref_theta) {
 
         prob_optimal = (matrix(( (1 - pnorm(-(output_hh$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
 
-        Em = apply(matrix(output_hh$m, nrow = n_halton_at_r), 2, function(x) sum(x * prob_optimal/sum(prob_optimal)))
+        Em = colMeans(matrix(output_hh$m, nrow = n_halton_at_r))
 
         Em[which(is.nan(Em))] = 0; 
 
-        output_0 = mean(((Em - data_hh_list[[mini_data_index]]$M_expense)^2)) +  mean((c(Em %*% t(Em)) - c(data_hh_list[[mini_data_index]]$M_expense %*% t(data_hh_list[[mini_data_index]]$M_expense))))^2; 
+        output_0 = mean(((Em - data_hh_list[[mini_data_index]]$M_expense)^2)) +  mean(abs(c(Em %*% t(Em)) - c(data_hh_list[[mini_data_index]]$M_expense %*% t(data_hh_list[[mini_data_index]]$M_expense)))); 
 
         deriv = rep(0, length(initial_param_trial));
 
@@ -584,7 +584,7 @@ optim_f =  function(x_pref_theta) {
             output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative);
             prob_optimal = (matrix(((1 - pnorm(-(output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
 
-            Em = apply(matrix(output_hh_i$m, nrow = n_halton_at_r), 2, function(x) sum(x * prob_optimal/sum(prob_optimal)))
+            Em = colMeans(matrix(output_hh_i$m, nrow = n_halton_at_r))
             Em[which(is.nan(Em))] = 0; 
             output_i = mean(((Em - data_hh_list[[mini_data_index]]$M_expense)^2)) +  mean(abs(c(Em %*% t(Em)) - c(data_hh_list[[mini_data_index]]$M_expense %*% t(data_hh_list[[mini_data_index]]$M_expense))));
             if (name_i == 'beta_theta') {
@@ -601,7 +601,7 @@ optim_f =  function(x_pref_theta) {
           output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative = NA);
             prob_optimal = (matrix(((1 - pnorm(- (output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(- (output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
 
-          Em = apply(matrix(output_hh_i$m, nrow = n_halton_at_r), 2, function(x) sum(x * prob_optimal/sum(prob_optimal)))
+          Em = colMeans(matrix(output_hh_i$m, nrow = n_halton_at_r))
           Em[which(is.nan(Em))] = 0; 
           output_i = mean(((Em - data_hh_list[[mini_data_index]]$M_expense)^2)) +  mean(abs(c(Em %*% t(Em)) - c(data_hh_list[[mini_data_index]]$M_expense %*% t(data_hh_list[[mini_data_index]]$M_expense))));
           deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/1e-3;
@@ -633,7 +633,6 @@ optim_f =  function(x_pref_theta) {
     save_output[[iter]] <<- param_trial_here
     current_output <<- pref_moment[[1]] + output_theta[[1]] + output_r[[1]]
     iter <<- iter + 1; 
-    saveRDS(save_output, file=paste0('../../householdbundling_estimate/save_output_',job_index,'.rds'))
 
     pref_moment[[2]][x_transform[[2]]$beta_theta_ind[1]] = pref_moment[[2]][x_transform[[2]]$beta_theta_ind[1]]  * exp(param_trial_here[x_transform[[2]]$beta_theta_ind[1]])
     output_theta[[2]][x_transform[[2]]$beta_theta_ind[1]] = output_theta[[2]][x_transform[[2]]$beta_theta_ind[1]]  * exp(param_trial_here[x_transform[[2]]$beta_theta_ind[1]])
