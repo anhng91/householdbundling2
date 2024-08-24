@@ -1133,7 +1133,7 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 		# moment = matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)) + 
 		# 	matrix(apply(Em2[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) ((theta[theta_pos_index])^2 - x)^2), ncol = length(theta_pos_index))
 
-		moment = mean(rowSums(matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)))) + mean(lapply(Emimj_new, function(x) sum((x[theta_pos_index, theta_pos_index] - (theta[theta_pos_index]) %*% t(theta[theta_pos_index]))^2)) %>% unlist())
+		moment = mean(rowSums(matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)))) + mean(lapply(Emimj_new, function(x) sum(abs(x[theta_pos_index, theta_pos_index] - (theta[theta_pos_index]) %*% t(theta[theta_pos_index])))) %>% unlist())
 
 		# sum_moment = mean(rowSums(moment))
 		# compute LLH: 

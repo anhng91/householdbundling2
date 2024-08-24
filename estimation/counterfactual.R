@@ -4,7 +4,7 @@ if (length(args)<3) {
   contraction_variance = 1;
   within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE);
   file_name_label = paste0('contraction_variance_', contraction_variance, '_full_heterogeneity')
-  job_index_iter = 1; 
+  job_index_iter = 1:100; 
 } else {
   numcores = as.numeric(args[1]); 
   contraction_variance = as.numeric(args[2]);
@@ -69,7 +69,6 @@ out_sample_index = out_sample_index[!(is.na(out_sample_index))]
 
 Com_HH_list_index = Com_HH_list_index[!(is.na(Com_HH_list_index))]
 
-benchmark = readRDS('../../Obj_for_manuscript/fit_values.rds')
 
 list_hh_2012 = unlist(lapply(1:length(data_hh_list), function(hh_index) ifelse(data_hh_list[[hh_index]]$Year[1] == 2012 & data_hh_list[[hh_index]]$HHsize_s[1] == 2, hh_index, NA)))
 list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))] %>% sample(1000)
@@ -87,6 +86,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 }
 
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
+
 iter_list = c(1:1);
 
 if (Sys.info()[['sysname']] == 'Windows') {
@@ -100,6 +100,9 @@ counterfactual_values_bd = list();
 counterfactual_values_pb = list();
 
 for (job_index in job_index_list[job_index_iter]) {
+	if (file.exists(paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index,'.rds'))) {
+		next;
+	}
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		transform_param_final = transform_param(param_final$other)
@@ -185,7 +188,7 @@ for (job_index in job_index_list[job_index_iter]) {
 			if (return_long) {
 				return(counterfactual_values_bd)
 			} else {
-				return(list(bd_output))
+				return(bd_output)
 			}
 		}
 
@@ -195,39 +198,20 @@ for (job_index in job_index_list[job_index_iter]) {
 		constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
 		pb_output[[job_index]] = do.call('rbind', lapply(bd_prem, function(prem) f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)));
 
+		bd_output[[job_index]] = as.data.frame(bd_output[[job_index]])
+		pb_output[[job_index]] = as.data.frame(pb_output[[job_index]])
+
+		names(bd_output[[job_index]]) = c('surplus', 'budget', 'cost', 'demand', 'p1', 'p2')
+		names(pb_output[[job_index]]) = c('surplus', 'budget', 'cost', 'demand', 'p1', 'p2')
+
+		bd_output[[job_index]] = bd_output[[job_index]] %>% mutate(p_ratio = p2/p1); 
+		bd_output[[job_index]]$p_ratio[is.nan(bd_output[[job_index]]$p_ratio)] = 1; 
+
+		saveRDS(bd_output[[job_index]], file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index,'.rds'))
+		saveRDS(pb_output[[job_index]], file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index,'.rds'))
 	}
 }
 
 
-bd_output = do.call('rbind', lapply(bd_output[job_index_list], function(x) as.data.frame(x)))
-pb_output = do.call('rbind', lapply(pb_output[job_index_list], function(x) as.data.frame(x)))
-bd_output = bd_output %>% mutate(p_ratio = p2/p1); 
-bd_output$p_ratio[is.nan(bd_output$p_ratio)] = 1; 
-
-saveRDS(bd_output, file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index_iter,'.rds'))
-saveRDS(pb_output, file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index_iter,'.rds'))
-
-stop();
-
-saveRDS(counterfactual_values_bd, file = paste0('../../Obj_for_manuscript/ind_bd_output', file_name_label,'_',job_index_iter,'.rds'))
-saveRDS(counterfactual_values_pb, file = paste0('../../Obj_for_manuscript/ind_pb_output', file_name_label,'_',job_index_iter,'.rds'))
-
-budget_2012_new = (bd_output %>% filter(p1 == 0.045 & p2 == 1.9 * 0.045) %>% pull(budget) %>% sum())
-
-plot_list = list()
-plot_list[[1]] = ggplot(data = bd_output , aes(x = p1, y = p_ratio, fill = surplus, color = budget >= (budget_2012_new))) + geom_tile(linewidth=0.3) + geom_text(aes(label = round(surplus,3)), color = 'white',size=2) + theme_bw() + theme(legend.position = "none") + xlab(expression(p[1])) + ylab(expression(p[2]/p[1])) + scale_y_continuous(breaks=seq(1,2,length.out=6))
-
-plot_list[[2]] = ggplot(data = bd_output , aes(x = p1, y = p_ratio, fill = demand, color = budget >= (budget_2012_new))) + geom_tile(linewidth=0.3) + geom_text(aes(label = round(demand,3)), color = 'white',size=2) + theme_bw() + theme(legend.position = "none") + xlab(expression(p[1])) + ylab(expression(p[2]/p[1])) + scale_y_continuous(breaks=seq(1,2,length.out=6))
-
-graph_data = rbind(pb_output, bd_output %>% select(-p_ratio) %>% filter(p2 == 2 * p1), bd_output %>% select(-p_ratio) %>% filter(p2 == 1.9 * p1))
-
-graph_data$type = c(rep('PB', nrow(pb_output)), rep('IP', nrow(bd_output %>% filter(p2 == 2 * p1))), rep('BD', nrow(bd_output %>% filter(p2 == 1.9 * p1))))
-
-plot_list[[3]] = ggplot(data = graph_data, aes(x = p2, y = surplus, linetype= budget >= budget_2012_new, color=type)) + geom_line()
-
-plot_list[[4]] = ggplot(data = graph_data, aes(x = p2, y = demand, linetype= budget >= budget_2012_new, color=type)) + geom_line()
-
-
-plot_list[[5]] = ggplot(data = data.frame(x = c(bd_output$surplus, pb_output$surplus), y = c(bd_output$budget, pb_output$budget), color = c(rep('BD', nrow(bd_output)), rep('PB', nrow(pb_output)))), aes(x = y, y = x, color = color)) + geom_point()
 
 

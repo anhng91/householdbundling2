@@ -97,13 +97,13 @@ sample_index = sample(1:length(data_hh_list), length(data_hh_list), replace=TRUE
 sample_r_theta = Vol_HH_list_index
 if (mini) {
   message('estimating in mini mode')
-  sample_r_theta = sample(sample_r_theta, 100, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, 500, replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, 1000, replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, 3000, replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 
   n_draw_halton = 50;
 
-  n_halton_at_r = 10;
+  n_halton_at_r = 50;
 
   n_draw_gauss = 10;
 } else {
