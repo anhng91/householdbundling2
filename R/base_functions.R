@@ -719,7 +719,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 				output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
 				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 				return(output)
-			})), ncol=HHsize) * halton_mat_list$sick[j,]
+			})), ncol=HHsize) * halton_mat_list$sick
 
 			theta_draw_realized_sick = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
 				output = (qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
@@ -751,7 +751,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 					upper_bound_vec[j] = 5; 
 					lower_bound_vec[j] = 0; 
 				}
-				
+
 			} else {
 				for (i in 1:HHsize) {
 					kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j,i]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws[,i] + 1 - random_xi_draws[,i]
