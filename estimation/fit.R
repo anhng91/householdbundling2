@@ -177,7 +177,7 @@ for (job_index in job_index_list[job_index_iter]) {
 		} else {
 		  fit_values = mclapply(c(Vol_HH_list_index, Com_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 1000, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x)
+				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 

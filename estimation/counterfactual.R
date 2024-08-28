@@ -76,13 +76,14 @@ list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))] %>% sample(1000)
 list_p1 = seq(0, 0.06, by = 0.005) 
 list_p2 = seq(0, 1, by = 0.05)
 
+n_draw_halton = 10;
 
 if (Sys.info()[['sysname']] == 'Windows') {
   numcores = numcores; 
   cl = makeCluster(numcores);
   clusterEvalQ(cl, library('tidyverse'))
   clusterEvalQ(cl, library('familyenrollment'))
-  clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index'))
+  clusterExport(cl,c('Vol_HH_list_index', 'Com_HH_list_index', 'out_sample_index', 'n_draw_halton'))
 }
 
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
@@ -159,7 +160,7 @@ for (job_index in job_index_list[job_index_iter]) {
 			f_id = function(id) {
 				income_vec = counterfactual_premium(prem, 'bundle discount', id)
 				output = do.call('rbind', lapply(iter_list, function(iter) {
-					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance))
+					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance))
 					output$iter = iter; 
 					output$Y = data_hh_list[[id]]$Income; 
 					output$m_observed = data_hh_list[[id]]$M_expense; 

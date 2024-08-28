@@ -13,11 +13,11 @@ if (length(args)<2) {
   numcores = as.numeric(args[2]); 
 }
 
-if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local') {
+if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | Sys.info()[['nodename']] == 'anhnguye@vpn-172-31-57-76') {
   mini=TRUE
   numcores = 4; 
 } else {
-  mini=TRUE
+  mini=FALSE
 }
 
 options("install.lock"=FALSE)
@@ -683,13 +683,13 @@ param_final$sick = sick_parameters
 param = param_final 
 transform_param_final = transform_param(param_final$other)
 
-fit_sample = sample_r_theta
+fit_sample = sample(Vol_HH_list_index, 5000)
 
 for (seed_number in c(1:1)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('transform_param_final', 'param','counterfactual_household_draw_theta_kappa_Rdraw'))
     mini_fit_values = parLapply(cl, c(fit_sample), function(id) {
-      output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x)
+      output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number + job_index, constraint_function = function(x) x)
       output = as.data.frame(output)
       output$Y = data_hh_list[[id]]$Income; 
       output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -699,7 +699,7 @@ for (seed_number in c(1:1)) {
     })
   } else {
     mini_fit_values = mclapply(c(fit_sample), function(id) {
-    output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number, constraint_function = function(x) x), error=function(e) e)
+    output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, n_draw_gauss, param$sick, param$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = seed_number + job_index, constraint_function = function(x) x), error=function(e) e)
     output = as.data.frame(output)
     output$Y = data_hh_list[[id]]$Income; 
     output$m_observed = data_hh_list[[id]]$M_expense; 
