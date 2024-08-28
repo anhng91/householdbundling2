@@ -287,7 +287,7 @@ moment_ineligible_hh = function(data_set, param) {
 	sick_p = data_set$sick_p;
 	R_draw = data_set$R_draw[[1]] * (data_set$R_draw[[1]] > 0) + 1;
 	kappa_draw = data_set$kappa_draw[[1]]; 
-
+	p0 = data_set$p0;
 	
 
 	HHsize = data_hh_i$HHsize[1]
@@ -325,44 +325,42 @@ moment_ineligible_hh = function(data_set, param) {
 		obj1 =  mean_E_XW(mean_beta_gamma[mem_index], exp(param$sigma_gamma), 1/(1 + kappa_draw[,mem_index]))
 		obj2 = truncated_normal_mean(mean_beta_delta[mem_index], exp(param$sigma_delta))
 		obj3 = mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw)
-		obj4 =  mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw);
 
 		obj5 = d_truncated_normal_mean(mean_beta_delta[mem_index], exp(param$sigma_delta)); 
 		obj6 = d_mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw); 
 		obj7 = d_mean_E_XW(mean_beta_gamma[mem_index], exp(param$sigma_gamma), 1/(1 + kappa_draw[,mem_index])); 
 
-		obj8 = truncated_normal_variance(mean_beta_delta[mem_index], exp(param$sigma_delta))
+		obj8 = truncated_normal_variance(mean_beta_delta[mem_index], exp(param$sigma_delta)); 
 		obj9 = mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw^2)
-		obj10 = d_truncated_normal_variance(mean_beta_delta[mem_index], exp(param$sigma_delta))
+		obj10 = d_truncated_normal_variance(mean_beta_delta[mem_index], exp(param$sigma_delta)); 
 		obj11 =  mean_E_XW(mean_beta_gamma[mem_index], exp(param$sigma_gamma), 1/(1 + kappa_draw[,mem_index])^2)
 		obj12 = d_mean_E_XW(mean_beta_gamma[mem_index], exp(param$sigma_gamma), 1/(1 + kappa_draw[,mem_index])^2)
 		obj13 = d_mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw^2)
 
-		m_draw[mem_index] = mean(theta_draw[,mem_index] * kappa_draw[,mem_index] + obj2 * theta_draw * obj4 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		m_draw[mem_index] = mean(theta_draw[,mem_index] * kappa_draw[,mem_index] + obj2 * theta_draw * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 		
-		d_m_draw$mean_beta_delta[mem_index] = mean(obj5$mu * theta_draw * obj4 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$mean_beta_delta[mem_index] = mean(obj5$mu * theta_draw * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
-		d_m_draw$sigma_delta[mem_index] = mean(obj5$sigma * theta_draw * obj4 * obj1 * exp(param$sigma_delta) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$sigma_delta[mem_index] = mean(obj5$sigma * theta_draw * obj3 * obj1 * exp(param$sigma_delta) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw$sigma_omega[mem_index] = mean(obj2 * theta_draw * obj6$sigma * exp(param$sigma_omega) * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
 
 		d_m_draw$mean_beta_omega[mem_index] = mean(obj2 * theta_draw * obj6$mu * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
 
-		d_m_draw$sigma_gamma[mem_index] = mean(obj2 * theta_draw * obj4 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$sigma_gamma[mem_index] = mean(obj2 * theta_draw * obj3 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
-		d_m_draw$mean_beta_gamma[mem_index] = mean(obj2 * theta_draw * obj4 * obj7$mu * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
-
+		d_m_draw$mean_beta_gamma[mem_index] = mean(obj2 * theta_draw * obj3 * obj7$mu * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
 		m_draw2[mem_index] = mean(theta_draw[,mem_index]^2 * kappa_draw[,mem_index]^2 + 
-			2 * theta_draw[,mem_index]^2 * obj2 * obj4 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
+			2 * theta_draw[,mem_index]^2 * obj2 * obj3 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
 			theta_draw[,mem_index]^2 * (obj2^2 + obj8) * obj9 * obj11 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw2$mean_beta_gamma[mem_index] = mean(
-			2 * theta_draw[,mem_index]^2 * obj2 * obj4 * obj7$mu * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
+			2 * theta_draw[,mem_index]^2 * obj2 * obj3 * obj7$mu * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
 			theta_draw[,mem_index]^2 * (obj2^2 + obj8) * obj9 * obj12$mu * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw2$sigma_gamma[mem_index] = mean(
-			2 * theta_draw[,mem_index]^2 * obj2 * obj4 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0)+ 
+			2 * theta_draw[,mem_index]^2 * obj2 * obj3 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0)+ 
 			theta_draw[,mem_index]^2 * (obj2^2 + obj8) * obj9 * obj12$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw2$mean_beta_omega[mem_index] = mean(
@@ -374,11 +372,11 @@ moment_ineligible_hh = function(data_set, param) {
 			theta_draw[,mem_index]^2 * (obj2^2 + obj8) * obj13$sigma * exp(param$sigma_omega) * obj11 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw2$mean_beta_delta[mem_index] = mean(
-			2 * theta_draw[,mem_index]^2 * obj5$mu * obj4 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0)+ 
+			2 * theta_draw[,mem_index]^2 * obj5$mu * obj3 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0)+ 
 			theta_draw[,mem_index]^2 * (2 * obj2 * obj5$mu + obj10$mu) * obj9 * obj11 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 
 		d_m_draw2$sigma_delta[mem_index] = mean(
-			2 * theta_draw[,mem_index]^2 * obj5$sigma * exp(param$sigma_delta) * obj4 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
+			2 * theta_draw[,mem_index]^2 * obj5$sigma * exp(param$sigma_delta) * obj3 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
 			theta_draw[,mem_index]^2 * (2 * obj2 * obj5$sigma * exp(param$sigma_delta) + obj10$sigma * exp(param$sigma_delta)) * obj9 * obj11 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0))
 	}
 
@@ -390,7 +388,7 @@ moment_ineligible_hh = function(data_set, param) {
 	d_m_draw2$mean_beta_omega = matrix(X_hh, ncol=1) %*% t(d_m_draw2$mean_beta_omega); 
 	d_m_draw2$mean_beta_gamma = apply(X_ind, 1, function(x) x * d_m_draw2$mean_beta_gamma); 
 
-	return(list(m_draw, m_draw2, d_m_draw, d_m_draw2))
+	return(list(m_draw * (1-p0), m_draw2 * (1-p0), lapply(d_m_draw,function(x) x*(1-p0)), lapply(d_m_draw2,function(x) x*(1-p0))))
 }
 
 
@@ -525,11 +523,11 @@ m_fun = function(input, income_effect=TRUE) {
 	output$neccessary = matrix(output$neccessary, ncol = input$HHsize)
 	output$optional = matrix(output$optional, ncol = input$HHsize)
 	output$insurer_cost = matrix(output$insurer_cost, ncol = input$HHsize)
-	if (min(output$insurer_cost) < 0) {
-		print(summary(input$theta_draw))
-		print(summary(input$kappa_draw))
-		stop('why is it negative?')
-	}
+	# if (min(output$insurer_cost) < 0) {
+	# 	print(summary(input$theta_draw))
+	# 	print(summary(input$kappa_draw))
+	# 	stop('why is it negative?')
+	# }
 	return(output)
 }
 
@@ -572,12 +570,12 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
 	halton_mat_list$individual_factor = qnorm(halton_mat[,1:HHsize]) %>% matrix(ncol = HHsize);
 	halton_mat_list$coverage = (halton_mat[,(1 * HHsize + 1):(2 * HHsize)]) %>% matrix(ncol = HHsize);
-	halton_mat_list$sick = (halton_mat[,(2 * HHsize + 1):(3 * HHsize)]) %>% matrix(ncol = HHsize);
+	# halton_mat_list$sick = (halton_mat[,(2 * HHsize + 1):(3 * HHsize)]) %>% matrix(ncol = HHsize);
 	upper_r = 5
 
-	for (i in 1:HHsize) {
-		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
-	}
+	# for (i in 1:HHsize) {
+	# 	halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
+	# }
 	halton_mat_list$gamma = (halton_mat[,(3 * HHsize + 1):(4 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$delta = (halton_mat[,(4 * HHsize + 1):(5 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$theta =  halton_mat[,(5 * HHsize + 1):(6 * HHsize)] %>% matrix(ncol=HHsize);
@@ -605,33 +603,24 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		s_theta = exp(param$sigma_theta); 
 
 		theta_bar = matrix(NA, nrow = halton_mat %>% nrow, ncol = HHsize)
-		theta_draw = halton_mat_list$theta * 0; 
-		theta_draw = theta_draw %>% matrix(ncol=HHsize)
-
+		p0 = theta_bar;
+		theta_draw =  matrix(0, nrow = nrow(theta_bar), ncol=HHsize)
+		kappa_draw[[1]] = theta_draw # observed coinsurance 
 		for (i in 1:HHsize) {
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * s_thetabar + halton_mat_list$household_random_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta; 
-			
-			theta_draw[, i] = qnorm(1 - (halton_mat_list$theta[, i] * (1 - pnorm(theta_bar[, i]/s_theta)) + (1 - halton_mat_list$theta[, i])),  lower.tail=FALSE) * s_theta + theta_bar[, i]
 
-			theta_draw[, i] = lapply(theta_draw[, i], function(x) {
-				x[which(is.na(x) | is.infinite(x) | x < 0)] = 0
-				return(x)
-			}) %>% unlist()
-
-			# theta_draw[, i] = theta_draw[, i] * halton_mat_list$sick[,i]
-			theta_draw[, i] = theta_draw[, i] * data_hh_i$sick_dummy[i]
-
-			if (min(theta_draw[,]) < 0) {
-				print(data_hh_i$sick_dummy[i])
-				stop('why is the draw negative?')
+			if (derivative) {
+				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i]
 			}
+			p0[,i] = pnorm(-theta_bar[,i]/s_theta)
+			theta_draw[,i] = (theta_bar[,i] + 1/sqrt(2 * pi)*exp(-1/2*(-theta_bar[,i]/s_theta)^2 - log(s_theta) - log(pnorm(-theta_bar[,i]/s_theta, lower.tail=FALSE))) * s_theta)
+
+			theta_draw[which(is.nan(theta_draw[,i])|is.infinite(theta_draw[,i])|is.na(theta_draw[,i])),i] = 0
+
 
 			random_xi_draws = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
 
-			if (data_hh_i$M_expense[i] == 0 & data_hh_i$sick_dummy[i] == 1) {
-				random_xi_draws = random_xi_draws * 0 + 1;
-			}
-			
+			# random_xi_draws = rep(random_xi_draws, nrow(theta_bar))
 			kappa_draw[[1]][,i] = (lapply(1:nrow(theta_draw), function(j) policy_mat_hh_index[[1]][[1]][max(which((theta_draw[j,i] * random_xi_draws[j]) >= policy_mat_hh_index[[1]][[2]][,i])),i]) %>% unlist()) * random_xi_draws + 1 - random_xi_draws
 		}
 
@@ -703,6 +692,9 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		root_r_vec = rep(Inf, n_draw_halton) 
 		
 		m = matrix(0, nrow = nrow(halton_mat), ncol = HHsize)
+		m_deviate = matrix(0, nrow = nrow(halton_mat), ncol = HHsize)
+		lower_mat = m; 
+		upper_mat = m + 5; 
 
 		random_xi_draws = matrix(NA, nrow = halton_mat %>% nrow, ncol = HHsize)
 
@@ -712,30 +704,47 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 		derivative_root_r = list()
 		upper_bound_vec = NULL;
-		lower_bound_vec = NULL; 
+		lower_bound_vec = NULL;
+		p0 = theta_bar;  
 		for (j in 1:n_draw_halton) {
 			# Full insurance: 
-			theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-				output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
-				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
-				return(output)
-			})), ncol=HHsize) * halton_mat_list$sick
+			# theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
+			# 	output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
+			# 	output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
+			# 	return(output)
+			# })), ncol=HHsize) * halton_mat_list$sick
 
-			theta_draw_realized_sick = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-				output = (qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
+			theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
+				# output = qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,] 
+				output = qnorm(x) * s_theta + theta_bar[j,]
 				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 				return(output)
 			})), ncol=HHsize) 
 
+			theta_draw_realized_sick = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
+				output = (qnorm(1 - (x * (1 - pnorm(theta_bar[j,]/s_theta)) + (1 - x)), lower.tail=FALSE) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
+				# output = (qnorm(x) * s_theta + theta_bar[j,]) * data_hh_i$sick_dummy 
+				output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
+				return(output)
+			})), ncol=HHsize) 
+
+			p0[j,] = pnorm(-theta_bar[j,]/s_theta);
+
 			theta_draw = matrix(apply(theta_draw, 2, function(x) {
-				x[which(is.na(x) | is.infinite(x))] = 0
+				x[which(is.na(x) | is.infinite(x) | is.nan(x))] = 0
 				return(x)
 			}), ncol=HHsize)
 
 			theta_draw_realized_sick = matrix(apply(theta_draw_realized_sick, 2, function(x) {
-				x[which(is.na(x) | is.infinite(x))] = 0
+				x[which(is.na(x) | is.infinite(x) | is.nan(x))] = 0
 				return(x)
 			}), ncol=HHsize)
+
+
+			# theta_draw_realized_sick = matrix(apply(theta_draw_realized_sick, 2, function(x) {
+			# 	x[which(is.na(x) | is.infinite(x))] = 0
+			# 	return(x)
+			# }), ncol=HHsize)
 
 			max_theta = apply(theta_draw,2, max); 
 
@@ -747,9 +756,13 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 				if (sum(data_hh_i$Vol_sts) == 0) {
 					upper_bound_vec[j] = 5;
 					lower_bound_vec[j] = 0;
+					lower_mat[j,] = 0; 
+					upper_mat[j,] = 5; 
 				} else {
 					upper_bound_vec[j] = 5; 
-					lower_bound_vec[j] = 0; 
+					lower_bound_vec[j] = 5; 
+					lower_mat[j,] = 5;
+					upper_mat[j,] = 5;  
 				}
 
 			} else {
@@ -791,7 +804,9 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 				income_effect = max(income_vec[1] - rowSums(theta_draw)) > 0
 
-				m[j,] = colMeans(m_fun(list(theta_draw = theta_draw_realized_sick, R_draw = R_optimal_realized_sick, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], omega = omega[j], HHsize = HHsize), income_effect = income_effect)$oop)
+				m[j,] = colMeans(m_fun(list(theta_draw = theta_draw, R_draw = R_optimal, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], omega = omega[j], HHsize = HHsize), income_effect = income_effect)$oop)
+				
+				m_deviate[j,] = colMeans(m_fun(list(theta_draw = theta_draw, R_draw = R_deviate[[i]], kappa_draw = kappa_draw_deviate[[i]], gamma = gamma[j,], delta = delta[j,], omega = omega[j], HHsize = HHsize), income_effect = income_effect)$oop)
 
 				U_optimal = U(list(R_draw = R_optimal, omega = omega[j], theta_draw = theta_draw, kappa_draw = kappa_draw_optimal, gamma = gamma[j,], delta = delta[j,], HHsize = HHsize), income_effect)  
 
@@ -829,11 +844,11 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		
 
 				for (i in elig_member_index) {
-					if (i %in% elig_member_index_positive) {
+					if (!(i %in% elig_member_index_positive)) {
 						if (data_hh_i$Vol_sts[i] == 1) {
 							lower_bound = c(lower_bound, 5); 
 						} else {
-							upper_bound = c(upper_bound, 0);
+							upper_bound = c(upper_bound, 5);
 						}
 					} else {
 						U_deviate[[i]] = U(list(R_draw = R_deviate[[i]], omega = omega[j], theta_draw = theta_draw, delta = delta[j,], gamma = gamma[j,] , HHsize = HHsize, kappa_draw = kappa_draw_deviate[[i]]),income_effect)
@@ -842,10 +857,12 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 							output = list()
 							output$root_r_vec = find_threshold_r(U_optimal, U_deviate[[i]])$root_r_vec 
 							lower_bound = c(lower_bound, output$root_r_vec);
+							lower_mat[j,i] = output$root_r_vec; 
 						} else {
 							output = list()
 							output$root_r_vec = find_threshold_r(U_deviate[[i]], U_optimal)$root_r_vec 
 							upper_bound = c(upper_bound, output$root_r_vec);
+							upper_mat[j,i] = output$root_r_vec;
 						}
 					}
 				}
@@ -871,11 +888,15 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		output$root_r = cbind(lower_bound_vec, upper_bound_vec)
 		output$hh_theta = halton_mat_list$household_random_factor 
 		output$m = m
+		output$m_deviate = m_deviate 
 		output$X_hh = var_hh(data_hh_i)
 		output$HHsize = HHsize; 
 		output$X_ind = var_ind(data_hh_i); 
 		output$X_ind_year = cbind(output$X_ind, data_hh_i$Year[1] == 2004, data_hh_i$Year[1] == 2006, data_hh_i$Year[1] == 2010, data_hh_i$Year[1] == 2012); 
 		output$X_hh = var_hh(data_hh_i);
+		output$p0 = p0;
+		output$upper_mat = upper_mat; 
+		output$lower_mat = lower_mat; 
 	} else {
 		output = list(); 
 		output$R_draw = R_draw; 
@@ -883,10 +904,12 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		output$theta_draw = theta_draw;
 		output$index = hh_index
 		output$income = Income_net_premium[[hh_index]]
+		output$p0 = colMeans(p0)
 		if (!(short)){
 			output$data = data_hh_i
 			output$policy_mat = policy_mat[[hh_index]]
 			output$X_ind = var_ind(data_hh_i)
+			output$X_ind_year = cbind(output$X_ind, data_hh_i$Year[1] == 2004, data_hh_i$Year[1] == 2006, data_hh_i$Year[1] == 2010, data_hh_i$Year[1] == 2012); 
 			output$X_hh = var_hh(data_hh_i)
 			output$sick_p = c(1/(1 + exp(output$X_ind %*% sick_parameters$par)))
 		}	
@@ -1129,40 +1152,24 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 	observed_insurance_index = which(apply(list_insurance, 1, function(x) all(x[1:HHsize] == observed_insurance)))
 
 	theta = data_hh_i$tot_cost_normalized;
-	theta_pos_index = which(data_hh_i$sick_dummy == 1);
+	# theta_pos_index = which(data_hh_i$sick_dummy == 1);
+	theta_pos_index = 1:HHsize;
 
 	s_thetabar = exp(param$sigma_thetabar); 
 	s_theta = exp(param$sigma_theta); 
 
 	theta_bar = matrix(NA, nrow = halton_mat %>% nrow, ncol = HHsize)
 
+
 	inner_f = function(input_vec) {
 		input_vec_transformed = transform_size_input_vec(input_vec)
+		llh = halton_mat_list$individual_factor;
 		for (i in 1:HHsize) {
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * exp(input_vec_transformed$sigma_thetabar) + input_vec_transformed$mean_beta_theta_ind[i] * halton_mat_list$household_random_factor + input_vec_transformed$mean_beta_theta[i]; 
+			llh[,i] = dnorm((theta[i] - theta_bar[,i])/exp(input_vec_transformed$sigma_theta))/exp(input_vec_transformed$sigma_theta) * (theta[i] > 0) + pnorm((theta[i] - theta_bar[,i])/exp(input_vec_transformed$sigma_theta)) * (theta[i] == 0)
 		}
-		z = -theta_bar/s_theta
-		Em = matrix(lapply(theta_bar + dnorm(z)/(1 - pnorm(z))*s_theta, function(x) ifelse(is.nan(x) | is.infinite(x) | x < 0, 0, x)) %>% unlist(), ncol = HHsize); 
-
-		Emimj = lapply(1:nrow(Em), function(index) (Em[index,]) %*% t(Em[index,]));
-
-
-		Em2 = Em^2 + (matrix(lapply(s_theta^2 * (1 + (z)*dnorm(z)/(1 - pnorm(z)) - (dnorm(z)/(1 - pnorm(z)))^2), function(x) ifelse(is.nan(x) | is.infinite(x), 0, x)) %>% unlist(), ncol = HHsize)) * (Em > 0); 
-
-
-		Emimj_new = lapply(1:nrow(Em), function(index) {diag(Emimj[[index]]) = Em2[index,]; return(Emimj[[index]])})
-
-
-		# moment = matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)) + 
-		# 	matrix(apply(Em2[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) ((theta[theta_pos_index])^2 - x)^2), ncol = length(theta_pos_index))
-
-		moment = mean(rowSums(matrix(apply(Em[,theta_pos_index] %>% matrix(ncol = length(theta_pos_index)), 1, function(x) (theta[theta_pos_index] - x)^2), ncol = length(theta_pos_index)))) + mean(lapply(Emimj_new, function(x) sum(abs(x[theta_pos_index, theta_pos_index] - (theta[theta_pos_index]) %*% t(theta[theta_pos_index])))) %>% unlist())
-
-		# sum_moment = mean(rowSums(moment))
-		# compute LLH: 
-		# LLH = mean(apply(do.call('cbind', lapply(theta_pos_index, function(i) dnorm(theta[i], mean = theta_bar[,i], sd = s_theta)/(1 - pnorm(0, mean = theta_bar[,i], sd = s_theta)))), 1, prod), na.rm=TRUE)
-		# return(-LLH)
-		return(moment)
+		
+		return(-log(mean(apply(llh, 1, prod)) + 1e-20))
 		
 	}
 
@@ -1348,11 +1355,11 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
 	halton_mat_list$individual_factor = qnorm(halton_mat[,1:HHsize]) %>% matrix(ncol = HHsize);
 	halton_mat_list$coverage = (halton_mat[,(1 * HHsize + 1):(2 * HHsize)]) %>% matrix(ncol = HHsize);
-	halton_mat_list$sick = (halton_mat[,(2 * HHsize + 1):(3 * HHsize)]) %>% matrix(ncol = HHsize);
+	# halton_mat_list$sick = (halton_mat[,(2 * HHsize + 1):(3 * HHsize)]) %>% matrix(ncol = HHsize);
 
-	for (i in 1:HHsize) {
-		halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
-	}
+	# for (i in 1:HHsize) {
+	# 	halton_mat_list$sick[,i] = (halton_mat_list$sick[,i] <= sick_p[i])
+	# }
 	halton_mat_list$gamma = (halton_mat[,(3 * HHsize + 1):(4 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$delta = (halton_mat[,(4 * HHsize + 1):(5 * HHsize)]) %>% matrix(ncol = HHsize);
 	halton_mat_list$theta = halton_mat[,(5 * HHsize + 1):(6 * HHsize)] %>% matrix(ncol=HHsize);
@@ -1423,10 +1430,10 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	m = matrix(NA, nrow = nrow(halton_mat), ncol = HHsize)
 
 	theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
-		output = qnorm(x * pnorm(-theta_bar/s_theta) + (1 - x)) * s_theta + theta_bar 
+		output = qnorm(x) * s_theta + theta_bar 
 		output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
 		return(output)
-	})), ncol=HHsize) * halton_mat_list$sick
+	})), ncol=HHsize)
 
 
 	theta_draw = matrix(apply(theta_draw, 2, function(x) {

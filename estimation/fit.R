@@ -134,6 +134,7 @@ if (!file.exists('../../Obj_for_manuscript/correlation_values.rds')) {
 
 fit_values_all = NULL; 
 no_heterogeneity_values_all = NULL; 
+n_draw_halton = 10;
 
 for (job_index in job_index_list[job_index_iter]) {
 	print(paste0('computing at index = ', job_index))
@@ -144,11 +145,11 @@ for (job_index in job_index_list[job_index_iter]) {
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		transform_param_final = transform_param(param_final$other)
 		if (Sys.info()[['sysname']] == 'Windows') {
-		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw'))
+		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw', 'n_draw_halton'))
 		  fit_values = parLapply(cl, c(Vol_HH_list_index, Com_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
 				if (id %in% Vol_HH_list_index) {}
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x), error=function(x) x)
+				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -162,7 +163,7 @@ for (job_index in job_index_list[job_index_iter]) {
 
 			no_heterogeneity_values = parLapply(cl, c(Vol_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
+				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -176,7 +177,7 @@ for (job_index in job_index_list[job_index_iter]) {
 		} else {
 		  fit_values = mclapply(c(Vol_HH_list_index, Com_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 1000, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x)
+				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 1000, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -189,7 +190,7 @@ for (job_index in job_index_list[job_index_iter]) {
 
 			no_heterogeneity_values = mclapply(c(Vol_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
+				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -214,7 +215,7 @@ for (job_index in job_index_list[job_index_iter]) {
 		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw'))
 		  out_sample_values = parLapply(cl, out_sample_index, function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new) })
+				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new) })
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -228,7 +229,7 @@ for (job_index in job_index_list[job_index_iter]) {
 		} else {
 		  out_sample_values = mclapply(out_sample_index, function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, 100, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new) })
+				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new) })
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
