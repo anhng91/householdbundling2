@@ -13,7 +13,7 @@ if (length(args)<2) {
   numcores = as.numeric(args[2]); 
 }
 
-if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | Sys.info()[['nodename']] == 'vpn-172-31-57-231.vpn.local.cmu.edu') {
+if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | grepl("vpn", Sys.info()[['nodename']])) {
   mini=TRUE
   numcores = 4; 
 } else {
@@ -33,7 +33,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
@@ -223,11 +223,14 @@ initial_param_trial[x_transform[[2]]$sigma_theta] = 0;
 initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
 initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = -2;
 initial_param_trial[x_transform[[2]]$sigma_thetabar] =0;
-initial_param_trial[x_transform[[2]]$beta_omega[1]] = 0;
+initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
 initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
 initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
 initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
 
+if (Sys.info()[['sysname']] == 'Windows') {
+  clusterExport(cl, c('initial_param_trial'))
+}
 
 iteration = 1;
 save_output = list();
