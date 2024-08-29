@@ -13,7 +13,7 @@ if (length(args)<2) {
   numcores = as.numeric(args[2]); 
 }
 
-if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | Sys.info()[['nodename']] == 'anhnguye@vpn-172-31-57-76') {
+if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | Sys.info()[['nodename']] == 'vpn-172-31-57-231.vpn.local.cmu.edu') {
   mini=TRUE
   numcores = 4; 
 } else {
@@ -215,18 +215,18 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-initial_param_trial = init_param
-initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
-# initial_param_trial = rep(0, length(init_param))
-# initial_param_trial[x_transform[[2]]$beta_theta[1]] = -1;
-# initial_param_trial[x_transform[[2]]$sigma_theta] = 0;
-# initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
-# initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = -2;
-# initial_param_trial[x_transform[[2]]$sigma_thetabar] =0;
-# initial_param_trial[x_transform[[2]]$beta_omega[1]] = 0;
-# initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
-# initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
-# initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
+# initial_param_trial = init_param
+# initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
+initial_param_trial = rep(0, length(init_param))
+initial_param_trial[x_transform[[2]]$beta_theta[1]] = -1;
+initial_param_trial[x_transform[[2]]$sigma_theta] = 0;
+initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
+initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = -2;
+initial_param_trial[x_transform[[2]]$sigma_thetabar] =0;
+initial_param_trial[x_transform[[2]]$beta_omega[1]] = 0;
+initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
+initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
+initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
 
 
 iteration = 1;
@@ -654,6 +654,21 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
 
 
 optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
+  print('x at optim_pref_theta = '); print(x)
+  # if (max(abs(x)) > 10) {
+  #   return(list(NA, rep(NA, length(index_theta_only))))
+  # }
+  output = try(optim_f(x, include_r = FALSE, include_pref=TRUE))
+  if("try-error" %in% class(output)) {
+    print(output)
+    return(list(NA, rep(NA, length(index_theta_only))))
+  } else {
+    return(output[1:2])
+  }
+
+}, control=list(maxit=1e3,reltol=1e-4), method='BFGS')
+
+optim_pref_theta = splitfngr::optim_share(optim_pref_theta$par, function(x) {
   print('x at optim_pref_theta = '); print(x)
   # if (max(abs(x)) > 10) {
   #   return(list(NA, rep(NA, length(index_theta_only))))
