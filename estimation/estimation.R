@@ -509,7 +509,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
         correlation = x_transform_fxr[[1]]$correlation
         mean_vec = rep(X_hh_theta_r %*% x_transform_fxr[[1]]$beta_r, each = n_halton_at_r) + correlation * hh_theta
 
-        denominator = (pnorm(-(5 - mean_vec)/sd_r, lower.tail=FALSE) - pnorm(-(0 - mean_vec)/sd_r, lower.tail=FALSE))
+        denominator = (pnorm(-(5 - mean_vec)/sd_r, lower.tail=FALSE) - pnorm(-(0 - mean_vec)/sd_r, lower.tail=FALSE)) + 1e-20
 
         output = -sum(colMeans(matrix((pnorm(-(root_r[,2] - mean_vec)/sd_r, lower.tail=FALSE) - pnorm(-(root_r[,1] - mean_vec)/sd_r, lower.tail=FALSE))/denominator, nrow = n_halton_at_r))) 
         
@@ -568,7 +568,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
 
         f_on_sqr = function(x) x^2;
         f_output = function(m, prob_optimal,p0, m_deviate, upper_mat, lower_mat) {
-          p_optimal_mat = (matrix(( (1 - pnorm(-(upper_mat - mean_vec)/sd_r)) - (1 - pnorm(-(lower_mat - mean_vec)/sd_r)))/ ((1 - pnorm(-(5 - mean_vec)/sd_r)) - (1 - pnorm(-(0 - mean_vec)/sd_r))) + 1e-20, nrow = n_halton_at_r))
+          p_optimal_mat = (matrix(( (1 - pnorm(-(upper_mat - mean_vec)/sd_r)) - (1 - pnorm(-(lower_mat - mean_vec)/sd_r)))/ (((1 - pnorm(-(5 - mean_vec)/sd_r)) - (1 - pnorm(-(0 - mean_vec)/sd_r))) + 1e-20), nrow = n_halton_at_r))
 
           m_optimal = m * p_optimal_mat + m_deviate * (1 - p_optimal_mat)
           Em = apply(m_optimal, 2, function(x) mean(x, na.rm=TRUE))
@@ -577,7 +577,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
         }
 
         output_0 = f_output(output_hh$m, prob_optimal, output_hh$p0, output_hh$m_deviate, output_hh$upper_mat, output_hh$lower_mat);
-        p_optimal_mat = (matrix(( (1 - pnorm(-(output_hh$upper_mat - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh$lower_mat - mean_vec)/sd_r)))/ ((1 - pnorm(-(5 - mean_vec)/sd_r)) - (1 - pnorm(-(0 - mean_vec)/sd_r))) + 1e-20, nrow = n_halton_at_r))
+        p_optimal_mat = (matrix(( (1 - pnorm(-(output_hh$upper_mat - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh$lower_mat - mean_vec)/sd_r)))/ (((1 - pnorm(-(5 - mean_vec)/sd_r)) - (1 - pnorm(-(0 - mean_vec)/sd_r))) + 1e-20), nrow = n_halton_at_r))
         m_optimal = output_hh$m * p_optimal_mat + output_hh$m_deviate * (1 - p_optimal_mat)
         Em = apply(m_optimal, 2, function(x) mean(x, na.rm=TRUE))
 
