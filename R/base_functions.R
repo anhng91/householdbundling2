@@ -337,19 +337,19 @@ moment_ineligible_hh = function(data_set, param) {
 		obj12 = d_mean_E_XW(mean_beta_gamma[mem_index], exp(param$sigma_gamma), 1/(1 + kappa_draw[,mem_index])^2)
 		obj13 = d_mean_E_XW(mean_beta_omega, exp(param$sigma_omega), R_draw^2)
 
-		m_draw[mem_index] = mean(theta_draw[,mem_index] * kappa_draw[,mem_index] + obj2 * theta_draw * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		m_draw[mem_index] = mean(theta_draw[,mem_index] * kappa_draw[,mem_index] + obj2 * theta_draw[,mem_index] * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 		
-		d_m_draw$mean_beta_delta[mem_index] = mean(obj5$mu * theta_draw * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$mean_beta_delta[mem_index] = mean(obj5$mu * theta_draw[,mem_index] * obj3 * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
-		d_m_draw$sigma_delta[mem_index] = mean(obj5$sigma * theta_draw * obj3 * obj1 * exp(param$sigma_delta) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$sigma_delta[mem_index] = mean(obj5$sigma * theta_draw[,mem_index] * obj3 * obj1 * exp(param$sigma_delta) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
-		d_m_draw$sigma_omega[mem_index] = mean(obj2 * theta_draw * obj6$sigma * exp(param$sigma_omega) * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
+		d_m_draw$sigma_omega[mem_index] = mean(obj2 * theta_draw[,mem_index] * obj6$sigma * exp(param$sigma_omega) * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
 
-		d_m_draw$mean_beta_omega[mem_index] = mean(obj2 * theta_draw * obj6$mu * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
+		d_m_draw$mean_beta_omega[mem_index] = mean(obj2 * theta_draw[,mem_index] * obj6$mu * obj1 * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0));
 
-		d_m_draw$sigma_gamma[mem_index] = mean(obj2 * theta_draw * obj3 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$sigma_gamma[mem_index] = mean(obj2 * theta_draw[,mem_index] * obj3 * obj7$sigma * exp(param$sigma_gamma) * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
-		d_m_draw$mean_beta_gamma[mem_index] = mean(obj2 * theta_draw * obj3 * obj7$mu * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
+		d_m_draw$mean_beta_gamma[mem_index] = mean(obj2 * theta_draw[,mem_index] * obj3 * obj7$mu * kappa_draw[,mem_index] * (data_set$R_draw[[1]] > 0))
 
 		m_draw2[mem_index] = mean(theta_draw[,mem_index]^2 * kappa_draw[,mem_index]^2 + 
 			2 * theta_draw[,mem_index]^2 * obj2 * obj3 * obj1 * kappa_draw[,mem_index]^2 * (data_set$R_draw[[1]] > 0) + 
@@ -545,6 +545,7 @@ m_fun = function(input, income_effect=TRUE) {
 #' @param derivative_r_threshold logical value, TRUE if want to compute the derivative of the r threshold w.r.t household and individual parameters.
 #' @param derivative logical value, TRUE if want to compute derivative w.r.t theta parameters 
 #' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
+#' @param option_derivative whether derivative is wr.r.t beta_theta_ind or beta_theta
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage. This does not take into account estimated preference parameters or unconditional distribution of health shocks. See `compute_expected_U_m` for the draws post-estimation of preference parameters and health shocks distribution.
 #' 
@@ -552,7 +553,7 @@ m_fun = function(input, income_effect=TRUE) {
 #'
 #' @examples
 #' household_draw_theta_kappa_Rdraw(1, sample_data_and_parameter$param, 1000, 10, sick_parameters_sample, xi_parameters_sample)
-household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative=NA) {
+household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind') {
 	set.seed(1);
 	tol = 1e-4;
 	data_hh_i = data_hh_list[[hh_index]]; 
@@ -609,8 +610,10 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 		for (i in 1:HHsize) {
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * s_thetabar + halton_mat_list$household_random_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta; 
 
-			if (derivative) {
+			if (derivative & option_derivative == 'beta_theta') {
 				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i]
+			} else if (derivative & option_derivative == 'beta_theta_ind') {
+				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i] * halton_mat_list$household_random_factor
 			}
 			p0[,i] = pnorm(-theta_bar[,i]/s_theta)
 			theta_draw[,i] = (theta_bar[,i] + 1/sqrt(2 * pi)*exp(-1/2*(-theta_bar[,i]/s_theta)^2 - log(s_theta) - log(pnorm(-theta_bar[,i]/s_theta, lower.tail=FALSE))) * s_theta)
@@ -670,8 +673,10 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 
 		for (i in 1:HHsize) { 
 			theta_bar[, i] = halton_mat_list$individual_factor[,i] * s_thetabar + halton_mat_list$household_random_factor * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta; 
-			if (derivative) {
+			if (derivative & option_derivative == 'beta_theta') {
 				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i]
+			} else if (derivative & option_derivative == 'beta_theta_ind') {
+				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i] * halton_mat_list$household_random_factor
 			}
 		}
 

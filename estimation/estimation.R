@@ -33,12 +33,10 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-# devtools::install(upgrade='never')
+devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
-
-# data_hh_list = lapply(data_hh_list, function(x) {x$sick_dummy = x$M_expense > 0; return(x)})
 
 Com_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
   data = data_hh_list[[hh_index]]; 
@@ -110,8 +108,8 @@ if (mini) {
 
   n_draw_gauss = 10;
 } else {
-  sample_r_theta = sample(sample_r_theta, 1500, replace=TRUE)
-  sample_identify_pref = sample(sample_identify_pref, round(length(sample_identify_pref)/2), replace=TRUE)
+  sample_r_theta = sample(sample_r_theta, round(length(sample_r_theta)/5), replace=TRUE)
+  sample_identify_pref = sample(sample_identify_pref, round(length(sample_identify_pref)/5), replace=TRUE)
   sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 
   n_draw_halton = 10;
@@ -218,7 +216,7 @@ n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) da
 # initial_param_trial = init_param
 # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
 initial_param_trial = rep(0, length(init_param))
-initial_param_trial[x_transform[[2]]$beta_theta[1]] = -1;
+initial_param_trial[x_transform[[2]]$beta_theta[1]] = -4;
 initial_param_trial[x_transform[[2]]$sigma_theta] = 0;
 initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
 initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = -2;
@@ -379,27 +377,34 @@ aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE)
 
           for (name_i in c('beta_theta', 'beta_theta_ind')) {
             for (i in 1:length(f0[[1]])) {
-              numerical_derivative = rep(0, length(f0[[1]])); numerical_derivative[i] = 1e-3;
-              data_index_new = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE);
-              f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
-              mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
-              output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense)))))  + 0 * sum((data_index_new$p0 - (1 - realized_sick))^2)
+              numerical_derivative = rep(0, length(f0[[1]])); numerical_derivative[i] = tol;
+              
               if (name_i == 'beta_theta') {
-                deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/1e-3 * data_index_old$X_ind_year[i,];
+                
+                data_index_new = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i);
+                f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
+                mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
+                output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense)))))  + 0 * sum((data_index_new$p0 - (1 - realized_sick))^2)
+                deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * data_index_old$X_ind_year[i,];
               } else {
-                deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/1e-3 * data_index_old$X_ind[i,];
+                
+                data_index_new = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i);
+                f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
+                mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
+                output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense)))))  + 0 * sum((data_index_new$p0 - (1 - realized_sick))^2)
+                deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * data_index_old$X_ind[i,];
               }
             }
           }
 
 
           for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
-            x_transform_i = x_transform; x_transform_i[[1]]
+            x_transform_i = x_transform; x_transform_i[[1]][['name_i']] = x_transform_i[[1]][['name_i']] + tol
             output_hh_i = household_draw_theta_kappa_Rdraw(index, x_transform_i[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative = NA, short=FALSE);
               f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
               mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
               output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense))))) + 0 * sum((data_index_new$p0 - (1 - realized_sick))^2)
-              deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/1e-3;
+              deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/tol;
           }
           return(list(deriv, output_0, c(sum((f0[[1]] - data_hh_list[[index]]$M_expense)^2), sum(f_on_sqr(c(off_diag(mat_mimj) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense))))),  sum((data_index_old$p0 - (1 - realized_sick))^2))))
         }
@@ -588,28 +593,30 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
 
         for (name_i in c('beta_theta', 'beta_theta_ind')) {
           for (i in 1:HHsize) {
-            numerical_derivative = rep(0, HHsize); numerical_derivative[i] = 1e-3;
-            output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative);
-            prob_optimal_i = (matrix(((1 - pnorm(-(output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
-            output_i = f_output(output_hh_i$m, prob_optimal_i, output_hh_i$p0, output_hh_i$m_deviate, output_hh_i$upper_mat, output_hh_i$lower_mat);
- 
+            numerical_derivative = rep(0, HHsize); numerical_derivative[i] = tol;
             if (name_i == 'beta_theta') {
-              deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/1e-3 * output_hh$X_ind_year[i,];
+              output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
+              prob_optimal_i = (matrix(((1 - pnorm(-(output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
+              output_i = f_output(output_hh_i$m, prob_optimal_i, output_hh_i$p0, output_hh_i$m_deviate, output_hh_i$upper_mat, output_hh_i$lower_mat);
+              deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * output_hh$X_ind_year[i,];
             } else {
-              deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/1e-3 * output_hh$X_ind[i,];
+              output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
+              prob_optimal_i = (matrix(((1 - pnorm(-(output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(-(output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
+              output_i = f_output(output_hh_i$m, prob_optimal_i, output_hh_i$p0, output_hh_i$m_deviate, output_hh_i$upper_mat, output_hh_i$lower_mat);
+              deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * output_hh$X_ind[i,];
             }
           }
         }
 
 
         for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
-          x_transform_i = x_transform; x_transform_i[[1]][[name_i]]=x_transform_i[[1]][[name_i]]+ 1e-3
+          x_transform_i = x_transform; x_transform_i[[1]][[name_i]]=x_transform_i[[1]][[name_i]]+ tol
           output_hh_i = household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_halton_at_r, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative = NA);
           prob_optimal_i = (matrix(((1 - pnorm(- (output_hh_i$root_r[,2] - mean_vec)/sd_r)) - (1 - pnorm(- (output_hh_i$root_r[,1] - mean_vec)/sd_r)))/denominator, nrow = n_halton_at_r))
 
           output_i = f_output(output_hh_i$m, prob_optimal_i, output_hh_i$p0, output_hh_i$m_deviate, output_hh_i$upper_mat, output_hh_i$lower_mat);
    
-          deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/1e-3;
+          deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/tol;
         }
         return(list(output_0, deriv, Em, data_hh_list[[mini_data_index]]$M_expense))
       }
@@ -625,7 +632,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
       print('------VOLUNTARY HH---------')
       print(summary(do.call('c', lapply(deriv_list, function(x) x[[3]]))))
       print(summary(do.call('c', lapply(deriv_list, function(x) x[[4]]))))
-      return(list(output, deriv, param_trial_inner_r))
+      return(list(output, deriv[], param_trial_inner_r))
     }
 
     if (include_r) {
@@ -649,29 +656,18 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
     output_theta[[2]][x_transform[[2]]$beta_theta_ind[1]] = output_theta[[2]][x_transform[[2]]$beta_theta_ind[1]]  * exp(param_trial_here[x_transform[[2]]$beta_theta_ind[1]])
     output_r[[2]][x_transform[[2]]$beta_theta_ind[1]] = output_r[[2]][x_transform[[2]]$beta_theta_ind[1]]  * exp(param_trial_here[x_transform[[2]]$beta_theta_ind[1]])
 
+    total_output = pref_moment[[1]] + output_r[[1]]; 
+    total_derivative = pref_moment[[2]] + output_r[[2]];
+
+    total_derivative[x_transform[[2]]$beta_theta_ind] = total_derivative[x_transform[[2]]$beta_theta_ind] * exp(x_transform[[1]]$beta_theta_ind[1])
     print('pref_moment[[2]]'); print(pref_moment[[2]][index_theta_only])
     print('output_theta[[2]]'); print(output_theta[[2]][index_theta_only])
     print('output_r[[2]]'); print( output_r[[2]][index_theta_only])
-    return(list(pref_moment[[1]] +  0 * output_theta[[1]]  +  output_r[[1]], pref_moment[[2]][index_theta_only] +  0 * output_theta[[2]][index_theta_only]   + output_r[[2]][index_theta_only], param_trial_here))
+    return(list(total_output, total_derivative[index_theta_only], param_trial_here))
 }
 
 
 optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
-  print('x at optim_pref_theta = '); print(x)
-  # if (max(abs(x)) > 10) {
-  #   return(list(NA, rep(NA, length(index_theta_only))))
-  # }
-  output = try(optim_f(x, include_r = FALSE, include_pref=TRUE))
-  if("try-error" %in% class(output)) {
-    print(output)
-    return(list(NA, rep(NA, length(index_theta_only))))
-  } else {
-    return(output[1:2])
-  }
-
-}, control=list(maxit=1e3,reltol=1e-4), method='BFGS')
-
-optim_pref_theta = splitfngr::optim_share(optim_pref_theta$par, function(x) {
   print('x at optim_pref_theta = '); print(x)
   # if (max(abs(x)) > 10) {
   #   return(list(NA, rep(NA, length(index_theta_only))))
