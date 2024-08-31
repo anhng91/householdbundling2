@@ -618,7 +618,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 			p0[,i] = pnorm(-theta_bar[,i]/s_theta)
 			theta_draw[,i] = (theta_bar[,i] + 1/sqrt(2 * pi)*exp(-1/2*(-theta_bar[,i]/s_theta)^2 - log(s_theta) - log(pnorm(-theta_bar[,i]/s_theta, lower.tail=FALSE))) * s_theta)
 
-			theta_draw[which(is.nan(theta_draw[,i])|is.infinite(theta_draw[,i])|is.na(theta_draw[,i])),i] = 0
+			theta_draw[which(is.nan(theta_draw[,i])|is.infinite(theta_draw[,i])|is.na(theta_draw[,i])|theta_draw[,i]<0),i] = 0
 
 
 			random_xi_draws = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
