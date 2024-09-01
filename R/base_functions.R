@@ -546,6 +546,7 @@ m_fun = function(input, income_effect=TRUE) {
 #' @param derivative logical value, TRUE if want to compute derivative w.r.t theta parameters 
 #' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
 #' @param option_derivative whether derivative is wr.r.t beta_theta_ind or beta_theta
+#' @param realized_sick Logical. If TRUE, set sick_dummy == data's value. 
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage. This does not take into account estimated preference parameters or unconditional distribution of health shocks. See `compute_expected_U_m` for the draws post-estimation of preference parameters and health shocks distribution.
 #' 
@@ -553,7 +554,7 @@ m_fun = function(input, income_effect=TRUE) {
 #'
 #' @examples
 #' household_draw_theta_kappa_Rdraw(1, sample_data_and_parameter$param, 1000, 10, sick_parameters_sample, xi_parameters_sample)
-household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind') {
+household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, short=TRUE, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', realized_sick=FALSE) {
 	set.seed(1);
 	tol = 1e-4;
 	data_hh_i = data_hh_list[[hh_index]]; 
@@ -615,8 +616,16 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 			} else if (derivative & option_derivative == 'beta_theta_ind') {
 				theta_bar[, i] = theta_bar[, i] + numerical_derivative[i] * halton_mat_list$household_random_factor
 			}
-			p0[,i] = pnorm(-theta_bar[,i]/s_theta)
-			theta_draw[,i] = (theta_bar[,i] + 1/sqrt(2 * pi)*exp(-1/2*(-theta_bar[,i]/s_theta)^2 - log(s_theta) - log(pnorm(-theta_bar[,i]/s_theta, lower.tail=FALSE))) * s_theta)
+			# p0[,i] = pnorm(-theta_bar[,i]/s_theta)
+			p0[,i] = 0
+			# theta_draw[,i] = (theta_bar[,i] + 1/sqrt(2 * pi)*exp(-1/2*(-theta_bar[,i]/s_theta)^2 - log(s_theta) - log(pnorm(-theta_bar[,i]/s_theta, lower.tail=FALSE))) * s_theta)
+
+			if (!realized_sick) {
+				theta_draw[,i] = qnorm(halton_mat_list$theta[,i]) * s_theta + theta_bar[,i]
+			} else {
+				theta_draw[,i] = (qnorm(halton_mat_list$theta[,i] * pnorm(-theta_bar[,i], lower.tail=TRUE) + (1 - halton_mat_list$theta[,i])) * s_theta + theta_bar[,i]) * data_hh_i$sick_dummy[i]
+			}
+			
 
 			theta_draw[which(is.nan(theta_draw[,i])|is.infinite(theta_draw[,i])|is.na(theta_draw[,i])|theta_draw[,i]<0),i] = 0
 
@@ -1333,6 +1342,10 @@ uniroot_usr = function(f, interval_init) {
 #' @param within_hh_heterogeneity is a list with list names gamma, delta, and theta_bar. If a list element is true, within-hh-heterogeneity is allowed.
 #' @param income_vec a vector of income net premium at different number of voluntarily insured members (from 0 to HHsize_s)
 #' @param contraction_variance is a numerical value to change the within-hh covariance matrix (towards 0)
+#' @param compute_WTP logical, TRUE if want to produce WTP
+#' @param derivative logical value, TRUE if want to compute derivative w.r.t theta parameters 
+#' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
+#' @param option_derivative whether derivative is wr.r.t beta_theta_ind or beta_theta
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1343,7 +1356,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1) {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind') {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1403,6 +1416,11 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		random_draw_here = rnorm(1)
 		theta_bar[i] = random_draw_here * s_thetabar * contraction_variance + random_hh_factor * contraction_variance * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta;
 		beta_theta[i] = t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta 
+		if (derivative & option_derivative == 'beta_theta') {
+			theta_bar[i] = theta_bar[i] + numerical_derivative[i]
+		} else if (derivative & option_derivative == 'beta_theta_ind') {
+			theta_bar[i] = theta_bar[i] + numerical_derivative[i] * halton_mat_list$household_random_factor
+		}
 	}
 
 	beta_omega = X_hh %*% param$beta_omega 
@@ -1571,61 +1589,64 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 			vol_sts_counterfactual[member_order[1:(optimal_U_index - 1)]] = 1
 		}
 
-		f_wtp = function(list_1, list_2, wtp, income_effect) {
-			un_censored_R_1 = list_1$un_censored_R; 
-			kappa_draw_1 = list_1$kappa_draw; 
-			un_censored_R_2 = list_2$un_censored_R - wtp; 
-			kappa_draw_2 = list_2$kappa_draw;
-			U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
-			U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
-			plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
-			return(cara(U1) - cara(U2))
-		}
-
-		if (optimal_U_index > 1) {
-			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[optimal_U_index]] + (income_vec[1] - income_vec[optimal_U_index]), kappa_draw = kappa_draw[[optimal_U_index]]),x, income_effect)
-			wtp = uniroot_usr(temp_f, c(0, mean(un_censored_R[[optimal_U_index]] - un_censored_R[[1]]) + 0.1))$root  
-		} else {
-			wtp = 0
-		}
-
-		wtp_uni = rep(0, HHsize)
-
-		for (i in elig_member_index) {
-			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
-
-			if (temp_f(0) > 0) {
-				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+		wtp = NA; 
+		wtp_uni=NA;
+		if (compute_WTP) {
+			f_wtp = function(list_1, list_2, wtp, income_effect) {
+				un_censored_R_1 = list_1$un_censored_R; 
+				kappa_draw_1 = list_1$kappa_draw; 
+				un_censored_R_2 = list_2$un_censored_R - wtp; 
+				kappa_draw_2 = list_2$kappa_draw;
+				U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
+				U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
+				plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
+				return(cara(U1) - cara(U2))
 			}
-			wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
-			wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
-			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
-			if (is.na(wtp_uni[i])) {
-				wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
-			}     
-		}
 
-		if (data_hh_i$HHsize_s[1] >= 2) {
-			temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
-			if (abs(temp_f(0)) < 1e-5) {
-				wtp_2 = 0
+			if (optimal_U_index > 1) {
+				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[optimal_U_index]] + (income_vec[1] - income_vec[optimal_U_index]), kappa_draw = kappa_draw[[optimal_U_index]]),x, income_effect)
+				wtp = uniroot_usr(temp_f, c(0, mean(un_censored_R[[optimal_U_index]] - un_censored_R[[1]]) + 0.1))$root  
 			} else {
-				upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
-				if (!(is.na(upper_bound))) {
-					wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
-					if (is.na(wtp_2)) {
-						temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect = FALSE)
-						wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
-					}
-				} else {
-					wtp_2 = NA 	
-				}
-				
-			}		
-		} else {
-			wtp_2 = 0; 
-		}
+				wtp = 0
+			}
 
+			wtp_uni = rep(0, HHsize)
+
+			for (i in elig_member_index) {
+				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
+
+				if (temp_f(0) > 0) {
+					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+				}
+				wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
+				wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
+				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+				if (is.na(wtp_uni[i])) {
+					wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
+				}     
+			}
+
+			if (data_hh_i$HHsize_s[1] >= 2) {
+				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
+				if (abs(temp_f(0)) < 1e-5) {
+					wtp_2 = 0
+				} else {
+					upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
+					if (!(is.na(upper_bound))) {
+						wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
+						if (is.na(wtp_2)) {
+							temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect = FALSE)
+							wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
+						}
+					} else {
+						wtp_2 = NA 	
+					}
+					
+				}		
+			} else {
+				wtp_2 = 0; 
+			}
+	 	}
 		m_all = m_fun(list(theta_draw = theta_draw, kappa_draw = kappa_draw[[optimal_U_index]], R_draw = R_draw[[optimal_U_index]], HHsize = HHsize, omega = omega, delta = delta, gamma = gamma), income_effect = income_effect)
 		m = colMeans(m_all$oop)
 		optional_care = colMeans(m_all$optional)
