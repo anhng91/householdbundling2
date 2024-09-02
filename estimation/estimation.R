@@ -216,11 +216,11 @@ n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) da
 # initial_param_trial = init_param
 # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
 initial_param_trial = rep(0, length(init_param))
-initial_param_trial[x_transform[[2]]$beta_theta[1]] = -1;
-initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.5);
+initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.2;
+initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.1);
 initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
-initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.5);
-initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.5);
+initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
+initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.1);
 initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
 initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
 initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
@@ -539,7 +539,6 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
       index_r = x_transform[[2]][c('beta_r', 'sigma_r', 'correlation')] %>% unlist()
 
       optim_r = optim(param_trial_inner_r[index_r], function(x) {
-        print('x at optim_r = '); print(x)
         x_with_new_r = param_trial_inner_r; 
         x_with_new_r[index_r] = x; 
         output = try(fx_r(transform_param(x_with_new_r, return_index=TRUE), silent=silent, derivative=FALSE))
@@ -610,7 +609,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
       deriv_2 = 2 * output_2_sqrt * (do.call('rbind', lapply(deriv_list, function(x) x[[2]][[2]])) %>% colMeans())
       # output = output_1 + output_2_sqrt^2*1000; 
       # deriv = deriv_1 + deriv_2*1000;
-      output = output_1 + (abs(output_2_sqrt) > 0.02)*1000;
+      output = output_1 + (abs(output_2_sqrt) > 0.04)*1000;
       deriv = deriv_1;
       print('------VOLUNTARY HH---------')
       print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
@@ -623,12 +622,13 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
     }
 
     if (include_r) {
-      output_r = output_wrt_r(x_transform, silent = FALSE);   
+      output_r = output_wrt_r(x_transform, silent = TRUE);   
     } else {
       output_r = list(0, rep(0, length(initial_param_trial)), param_trial_here)
     }
     
     print('----------FINAL OUTPUT---------');
+    print('at x value = '); print(output_r[[3]])
     print(pref_moment[[1]] + output_theta[[1]] + output_r[[1]])
     print(pref_moment[[1]])
     print(output_r[[1]])
