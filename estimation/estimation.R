@@ -348,9 +348,9 @@ for (job_index_iter in c(1:100)) {
       mini_param = splitfngr::optim_share(initial_param_trial[x_transform[[2]][pref_list] %>% unlist()], function(x) {
         x_new = param_trial_here; 
         x_new[x_transform[[2]][pref_list] %>% unlist()] = x; 
-        # if (max(abs(x)) > 4) {
-        #   return(list(NA, rep(NA, length(x))))
-        # }
+        if (max(abs(x)) > 3) {
+          return(list(NA, rep(NA, length(x))))
+        }
         output = mini_f(transform_param(x_new, return_index = TRUE)); 
         print(paste0('output of aggregate_moment_pref  = ', output[[1]])); 
         print('x = '); print(x)
@@ -617,8 +617,8 @@ for (job_index_iter in c(1:100)) {
         deriv_3 = 2 * output_2_sqrt * (do.call('rbind', lapply(deriv_list, function(x) x[[2]][[3]])) %>% colMeans())
         # output = output_1 + output_2_sqrt^2*1000; 
         # deriv = deriv_1 + deriv_2*1000;
-        output = output_1 + (output_2_sqrt)^2*1e6/25 + (output_3_sqrt)^2*1e6;
-        deriv = deriv_1 + deriv_2 * 1e6/25 * deriv_3 * 1e6;
+        output = (output_3_sqrt)^2 * length(sample_r_theta) + (output_2_sqrt)^2 * length(sample_r_theta);
+        deriv = output_3_sqrt * 2 * deriv_3 * length(sample_r_theta) + output_2_sqrt * 2 * deriv_2 * length(sample_r_theta);
         print('------VOLUNTARY HH---------')
         print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
         # if (max(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))[,3]) == 0) {
@@ -691,7 +691,7 @@ for (job_index_iter in c(1:100)) {
   param = param_final 
   transform_param_final = transform_param(param_final$other)
 
-  fit_sample = sample_r_theta
+  fit_sample = sample(Com_HH_list_index, 1000)
 
   for (seed_number in c(1:1)) {
     if (Sys.info()[['sysname']] == 'Windows') {
