@@ -31,7 +31,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-# devtools::install(upgrade='never')
+devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
@@ -665,9 +665,9 @@ for (job_index_iter in c(1:100)) {
 
   optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
     print('x at optim_pref_theta = '); print(x)
-    # if (max(abs(x)) > 10) {
-    #   return(list(NA, rep(NA, length(index_theta_only))))
-    # }
+    if (max(abs(x)) > 10) {
+      return(list(NA, rep(NA, length(index_theta_only))))
+    }
     output = try(optim_f(x, include_r = TRUE, include_pref=TRUE))
     if("try-error" %in% class(output)) {
       print(output)
