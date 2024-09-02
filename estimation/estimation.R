@@ -213,18 +213,18 @@ X_hh_theta_r = do.call('rbind',lapply(sample_r_theta, function(output_hh_index) 
 
 n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-# initial_param_trial = init_param
-# initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
-initial_param_trial = rep(0, length(init_param))
-initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.2;
-initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.1);
-initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
-initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
-initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.1);
-initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
-initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
-initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
-initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
+initial_param_trial = init_param
+initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
+# initial_param_trial = rep(0, length(init_param))
+# initial_param_trial[x_transform[[2]]$beta_theta[1]] = 0.01;
+# initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.01);
+# initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
+# initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.01);
+# initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.01);
+# initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
+# initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
+# initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
+# initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
 
 if (Sys.info()[['sysname']] == 'Windows') {
   clusterExport(cl, c('initial_param_trial'))
@@ -563,7 +563,7 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
         X_hh = var_hh(data_hh_i)
         X_ind_year = cbind(var_ind(data_hh_i), data_hh_i$Year == 2004, data_hh_i$Year == 2006, data_hh_i$Year == 2010, data_hh_i$Year == 2012)
         f_output = function(output_hh) {
-          return(list((output_hh$m - m_observed)^2 + (c(output_hh$m %*% t(output_hh$m)) - c(m_observed %*% t(m_observed)))^2, sum(output_hh$vol_sts_counterfactual)))
+          return(list(sum((output_hh$m - m_observed)^2) + sum((c(output_hh$m %*% t(output_hh$m)) - c(m_observed %*% t(m_observed)))^2), sum(output_hh$vol_sts_counterfactual)))
         }
 
         output_0 = f_output(output_hh)
@@ -606,10 +606,11 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
       output_1 = do.call('c', lapply(deriv_list, function(x) x[[1]])) %>% sum
       deriv_1 = do.call('rbind', lapply(deriv_list, function(x) x[[2]][[1]])) %>% colSums()
       output_2_sqrt = (do.call('c', lapply(deriv_list, function(x) x[[3]][,3])) %>% mean - do.call('c', lapply(deriv_list, function(x) x[[3]][,4])) %>% mean)
+      output_3_sqrt = (do.call('c', lapply(deriv_list, function(x) x[[3]][,1])) %>% mean - do.call('c', lapply(deriv_list, function(x) x[[3]][,2])) %>% mean)
       deriv_2 = 2 * output_2_sqrt * (do.call('rbind', lapply(deriv_list, function(x) x[[2]][[2]])) %>% colMeans())
       # output = output_1 + output_2_sqrt^2*1000; 
       # deriv = deriv_1 + deriv_2*1000;
-      output = output_1 + (abs(output_2_sqrt) > 0.04)*1000;
+      output = output_1 + (abs(output_2_sqrt) > 0.04)*1000 + (abs(output_3_sqrt) > 3e-3)*1000;
       deriv = deriv_1;
       print('------VOLUNTARY HH---------')
       print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
@@ -652,36 +653,6 @@ optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_the
     return(list(total_output, total_derivative[index_theta_only], param_trial_here))
 }
 
-
-# message('search for initial value')
-# index_theta_only = c(x_transform[[2]]$beta_theta[1], x_transform[[2]]$beta_theta_ind[1], x_transform[[2]]$sigma_thetabar, x_transform[[2]]$sigma_theta)
-# val_0 = optim_f(c(-1, -3, -4, -4), include_r = TRUE, include_pref=TRUE)[[1]]
-
-# index_theta_only = c(x_transform[[2]]$beta_theta_ind[1], x_transform[[2]]$sigma_thetabar, x_transform[[2]]$sigma_theta)
-
-# init_val = initial_param_trial[index_theta_only]
-# find_init = try(splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
-#   print('x at optim_pref_theta = '); print(x)
-#   if (max(abs(x)) > 10) {
-#     return(list(NA, rep(NA, length(index_theta_only))))
-#   }
-#   output = try(optim_f(x, include_r = TRUE, include_pref=TRUE))
-#   if (!(is.na(output[[1]]))) {
-#     if (output[[1]] < val_0) {
-#       init_val <<- x; 
-#       stop('found initial value')
-#     }
-#   }
-  
-#   if("try-error" %in% class(output)) {
-#     print(output)
-#     return(list(NA, rep(NA, length(index_theta_only))))
-#   } else {
-#     return(output[1:2])
-#   }
-# }, control=list(maxit=1e3,reltol=1e-4), method='BFGS'))
-
-# initial_param_trial[index_theta_only] = init_val;
 
 index_theta_only = x_transform[[2]][list_theta_var] %>% unlist(); 
 
