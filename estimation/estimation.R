@@ -216,18 +216,18 @@ for (job_index_iter in c(1:100)) {
 
   n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
-  # initial_param_trial = init_param
-  # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
-  initial_param_trial = rep(0, length(init_param))
-  initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.15;
-  initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.08);
-  initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
-  initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
-  initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.08);
-  initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
-  initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
-  initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
-  initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
+  initial_param_trial = init_param
+  initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
+  # initial_param_trial = rep(0, length(init_param))
+  # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.15;
+  # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.08);
+  # initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
+  # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
+  # initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.08);
+  # initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
+  # initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
+  # initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
+  # initial_param_trial[x_transform[[2]]$sigma_omega[1]] = -1;
 
   if (Sys.info()[['sysname']] == 'Windows') {
     clusterExport(cl, c('initial_param_trial'))
