@@ -1346,6 +1346,7 @@ uniroot_usr = function(f, interval_init) {
 #' @param derivative logical value, TRUE if want to compute derivative w.r.t theta parameters 
 #' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
 #' @param option_derivative whether derivative is wr.r.t beta_theta_ind or beta_theta
+#' @param always_covered logical, TRUE if xi is always 1.
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1356,7 +1357,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind') {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE) {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1494,7 +1495,12 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	
 	random_xi_draws = matrix(NA, nrow = n_draw_halton, ncol=HHsize)
 	for (i in 1:HHsize) {
-		random_xi_draws[,i] = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
+		if (always_covered) {
+			random_xi_draws[,i] = 1; 
+		} else {
+			random_xi_draws[,i] = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
+		}
+		
 	}
 
 

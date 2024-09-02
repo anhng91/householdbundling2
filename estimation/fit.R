@@ -79,7 +79,7 @@ if (!(dir.exists('../../Obj_for_manuscript/'))) {
 	dir.create('../../Obj_for_manuscript/')
 }
 
-if (!file.exists('../../Obj_for_manuscript/all_param_final_2.rds')) {
+# if (!file.exists('../../Obj_for_manuscript/all_param_final_2.rds')) {
 	all_param_final = list()
 	job_index_normalized = 1;
 	for (job_index in job_index_list) {
@@ -106,11 +106,11 @@ if (!file.exists('../../Obj_for_manuscript/all_param_final_2.rds')) {
 	}
 
 	saveRDS(all_param_final_2, file='../../Obj_for_manuscript/all_param_final_2.rds')
-}
+# }
 
 
 
-if (!file.exists('../../Obj_for_manuscript/correlation_values.rds')) {
+# if (!file.exists('../../Obj_for_manuscript/correlation_values.rds')) {
 	message('computing correlation values')
 	# Compute covariance matrices 
 	correlation_values = lapply(all_param_final, function(x) do.call('c',lapply(data_hh_list[c(Vol_HH_list_index, Com_HH_list_index)], function(data_id) {
@@ -128,7 +128,7 @@ if (!file.exists('../../Obj_for_manuscript/correlation_values.rds')) {
 
 
 	saveRDS(correlation_values, file='../../Obj_for_manuscript/correlation_values.rds')
-}
+# }
 
 
 
@@ -190,7 +190,7 @@ for (job_index in job_index_list[job_index_iter]) {
 
 			no_heterogeneity_values = mclapply(c(Vol_HH_list_index), function(id) {
 			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
+				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE), always_covered = TRUE), error=function(x) x)
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
