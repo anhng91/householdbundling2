@@ -103,6 +103,7 @@ out_sample_index_f = out_sample_index_f[!(is.na(out_sample_index_f))]
 message('iterating over job indices') 
 
 sample_r_theta_f = Vol_HH_list_index
+
 for (job_index_iter in c(1:100)) {
   job_index = as.integer(Sys.time());  
 
@@ -115,7 +116,7 @@ for (job_index_iter in c(1:100)) {
     sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/50), replace=TRUE)
     sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/50), replace=TRUE)
     out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/50), replace=TRUE)
-    # sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
+    sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
 
     n_draw_halton = 10;
 
@@ -125,9 +126,8 @@ for (job_index_iter in c(1:100)) {
   } else {
     sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/10), replace=TRUE)
     sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/10), replace=TRUE)
-    sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
     out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/10), replace=TRUE)
-
+    sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
     n_draw_halton = 10;
 
     n_halton_at_r = 10;
@@ -233,10 +233,10 @@ for (job_index_iter in c(1:100)) {
   initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
   # initial_param_trial = rep(0, length(init_param))
   # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.15;
-  # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.08);
+  # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.2);
   # initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
   # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
-  # initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.08);
+  # initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.2);
   # initial_param_trial[x_transform[[2]]$beta_omega[1]] = 1;
   # initial_param_trial[x_transform[[2]]$beta_gamma[1]] = 0;
   # initial_param_trial[x_transform[[2]]$sigma_gamma[1]] = -1;
@@ -416,7 +416,7 @@ for (job_index_iter in c(1:100)) {
 
 
             for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
-              x_transform_i = x_transform; x_transform_i[[1]][['name_i']] = x_transform_i[[1]][['name_i']] + tol
+              x_transform_i = x_transform; x_transform_i[[1]][[name_i]] = x_transform_i[[1]][[name_i]] + tol
               output_hh_i = household_draw_theta_kappa_Rdraw(index, x_transform_i[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative = NA, short=FALSE, realized_sick = FALSE);
                 f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
                 mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];

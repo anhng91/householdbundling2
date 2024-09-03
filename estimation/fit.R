@@ -113,19 +113,29 @@ if (!(dir.exists('../../Obj_for_manuscript/'))) {
 # if (!file.exists('../../Obj_for_manuscript/correlation_values.rds')) {
 	message('computing correlation values')
 	# Compute covariance matrices 
-	correlation_values = lapply(all_param_final, function(x) do.call('c',lapply(data_hh_list[c(Vol_HH_list_index, Com_HH_list_index)], function(data_id) {
-		x_W = var_ind(data_id) %*% x$beta_theta_ind; 
-		if (nrow(data_id) > 1) {
-			cov_matrix = x_W %*% t(x_W) + diag(rep(exp(x$sigma_thetabar)^2, nrow(data_id)))
-			cor_matrix = cov2cor(cov_matrix)
-		} else {
-			return(NA)
-		}
-		diag(cor_matrix) = NA; 
-		cor_matrix_vec = c(cor_matrix)
-		return(cor_matrix_vec); 
-	})))
-
+	correlation_values = lapply(all_param_final, function(x) {
+		output = do.call('rbind',lapply(data_hh_list[c(Vol_HH_list_index, Com_HH_list_index)], 
+			function(data_id) {
+				x_W = var_ind(data_id) %*% x$beta_theta_ind; 
+				if (nrow(data_id) > 1) {
+					cov_matrix = x_W %*% t(x_W) + diag(rep(exp(x$sigma_thetabar)^2, nrow(data_id)))
+					cor_matrix = cov2cor(cov_matrix)
+				} else {
+					return(NA)
+				}
+				# diag(cor_matrix) = NA; 
+				cor_matrix_vec = c(cor_matrix)
+				cor_relationship = matrix(NA, nrow=5, ncol=5)
+				for (i in 1:5) {
+					for (j in 1:i) {
+						cor_relationship[i,j] = mean(c(cor_matrix[which(data_id$relationship == i), which(data_id$relationship == j)]), na.rm=TRUE)
+					}
+				}
+				cor_relationship[which(is.nan(cor_relationship))] = NA; 
+				return(c(cor_relationship)); 
+			}))
+		return(matrix(apply(output, 2, function(y) mean(y, na.rm=TRUE)), nrow=5))
+	})
 
 	saveRDS(correlation_values, file='../../Obj_for_manuscript/correlation_values.rds')
 # }
@@ -155,6 +165,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$m_observed = data_hh_list[[id]]$M_expense; 
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id; 
+				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter; 
 				return(output)
 			}))
@@ -169,6 +180,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$m_observed = data_hh_list[[id]]$M_expense; 
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id; 
+				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter;
 				return(output)
 				}))
@@ -183,6 +195,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$m_observed = data_hh_list[[id]]$M_expense; 
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id
+				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter; 
 				return(output)
 			}))
@@ -196,6 +209,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$m_observed = data_hh_list[[id]]$M_expense; 
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id; 
+				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter; 
 				return(output)
 			}))
@@ -221,6 +235,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$m_observed = data_hh_list[[id]]$M_expense; 
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id
+				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter 
 				return(output)
 			}))
@@ -233,6 +248,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
+				output$relationship = data_hh_list[[id]]$relationship
 				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
 				output$id = id 
 				output$iter = iter 
