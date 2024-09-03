@@ -102,7 +102,7 @@ out_sample_index_f = lapply(1:length(data_hh_list), function(hh_index) {
 out_sample_index_f = out_sample_index_f[!(is.na(out_sample_index_f))] 
 message('iterating over job indices') 
 
-
+sample_r_theta_f = Vol_HH_list_index
 for (job_index_iter in c(1:100)) {
   job_index = as.integer(Sys.time());  
 
@@ -110,7 +110,6 @@ for (job_index_iter in c(1:100)) {
   message('bootstrapping indices')
   set.seed(job_index);
   sample_index = sample(1:length(data_hh_list), length(data_hh_list), replace=TRUE)
-  sample_r_theta = Vol_HH_list_index
   if (mini) {
     message('estimating in mini mode')
     sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/50), replace=TRUE)
