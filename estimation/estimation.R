@@ -64,7 +64,7 @@ Vol_HH_list_index = Vol_HH_list_index[!(is.na(Vol_HH_list_index))]
 full_index = 1:length(data_hh_list); 
 
 message('Identify the sample for theta')
-sample_identify_theta = full_index[which((lapply(full_index, function(sample_index_i) {
+sample_identify_theta_f = full_index[which((lapply(full_index, function(sample_index_i) {
       data_mini = data_hh_list[[sample_index_i]]
       if ((data_mini$Year[1] == 2008) & (data_mini$Income[1] < 0) & (data_mini$HHsize_s[1] == 0)) {
         return(1)
@@ -73,7 +73,7 @@ sample_identify_theta = full_index[which((lapply(full_index, function(sample_ind
       }
     }) %>% unlist()) == 1)]
 
-sample_no_sick = full_index[which((lapply(full_index, function(sample_index_i) {
+sample_no_sick_f = full_index[which((lapply(full_index, function(sample_index_i) {
       data_mini = data_hh_list[[sample_index_i]]
       if (((data_mini$HHsize_s[1] == 0) & (sum(data_mini$sick_dummy) == 0))) {
         return(1)
@@ -83,13 +83,25 @@ sample_no_sick = full_index[which((lapply(full_index, function(sample_index_i) {
     }) %>% unlist()) == 1)]
 
 message('Identify the sample for preference')
-sample_identify_pref = lapply(Com_HH_list_index, function(x) ifelse(x %in% c(sample_identify_theta, sample_no_sick), NA, x)) %>% unlist()
-sample_identify_pref = sample_identify_pref[!(is.na(sample_identify_pref))]
+sample_identify_pref_f = lapply(Com_HH_list_index, function(x) ifelse(x %in% c(sample_identify_theta_f, sample_no_sick_f), NA, x)) %>% unlist()
+sample_identify_pref_f = sample_identify_pref_f[!(is.na(sample_identify_pref_f))]
 
 message('Change pref sample')
-sample_identify_pref = Com_HH_list_index
+sample_identify_pref_f = Com_HH_list_index
 
+out_sample_index_f = lapply(1:length(data_hh_list), function(hh_index) {
+  data = data_hh_list[[hh_index]]; 
+  if (nrow(data) > nrow(data %>% filter(Bef_sts + Com_sts + Std_w_ins == 1)) & (data$Year[1] == 2006 & data$HHsize_s[1] > 1)) {
+    return(hh_index);
+  }
+  else {
+    return(NA); 
+  }
+}) %>% unlist(); 
+
+out_sample_index_f = out_sample_index_f[!(is.na(out_sample_index_f))] 
 message('iterating over job indices') 
+
 
 for (job_index_iter in c(1:100)) {
   job_index = as.integer(Sys.time());  
@@ -101,8 +113,9 @@ for (job_index_iter in c(1:100)) {
   sample_r_theta = Vol_HH_list_index
   if (mini) {
     message('estimating in mini mode')
-    sample_r_theta = sample(sample_r_theta, round(length(sample_r_theta)/50), replace=TRUE)
-    sample_identify_pref = sample(sample_identify_pref, round(length(sample_identify_pref)/50), replace=TRUE)
+    sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/50), replace=TRUE)
+    sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/50), replace=TRUE)
+    out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/50), replace=TRUE)
     # sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
 
     n_draw_halton = 10;
@@ -111,9 +124,10 @@ for (job_index_iter in c(1:100)) {
 
     n_draw_gauss = 10;
   } else {
-    sample_r_theta = sample(sample_r_theta, round(length(sample_r_theta)/10), replace=TRUE)
-    sample_identify_pref = sample(sample_identify_pref, round(length(sample_identify_pref)/10), replace=TRUE)
-    sample_identify_theta = sample(sample_identify_theta, length(sample_identify_theta), replace=TRUE)
+    sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/10), replace=TRUE)
+    sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/10), replace=TRUE)
+    sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
+    out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/10), replace=TRUE)
 
     n_draw_halton = 10;
 
@@ -557,8 +571,15 @@ for (job_index_iter in c(1:100)) {
 
         # compute derivative 
         compute_deriv = function(mini_data_index) {
-          output_hh = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = function(x) x, compute_WTP = FALSE)
           data_hh_i = data_hh_list[[mini_data_index]]
+
+          if (data_hh_i$Year[1] == 2006) {
+            constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new) }
+          } else {
+            constraint_function = function(x) x
+          }
+          output_hh = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE)
+          
           realized_vol_sts = data_hh_i$Vol_sts
           m_observed = data_hh_i$M_expense
           HHsize = length(m_observed)
@@ -576,13 +597,13 @@ for (job_index_iter in c(1:100)) {
             for (i in 1:HHsize) {
               numerical_derivative = rep(0, HHsize); numerical_derivative[i] = tol;
               if (name_i == 'beta_theta') {
-                output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = function(x) x, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i)
+                output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i)
                 output_i = f_output(output_hh_i);
                 deriv[[1]][x_transform[[2]][[name_i]]] = deriv[[1]][x_transform[[2]][[name_i]]] + (output_i[[1]] - output_0[[1]])/tol * X_ind_year[i,];
                 deriv[[2]][x_transform[[2]][[name_i]]] = deriv[[2]][x_transform[[2]][[name_i]]] + (output_i[[2]] - output_0[[2]])/tol * X_ind_year[i,];
                 deriv[[3]][x_transform[[2]][[name_i]]] = deriv[[3]][x_transform[[2]][[name_i]]] + (output_i[[3]] - output_0[[3]])/tol * X_ind_year[i,];
               } else {
-                output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = function(x) x, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
+                output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, param = x_transform[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
                 output_i = f_output(output_hh_i);
                 deriv[[1]][x_transform[[2]][[name_i]]] = deriv[[1]][x_transform[[2]][[name_i]]] + (output_i[[1]] - output_0[[1]])/tol * X_ind[i,];
                 deriv[[2]][x_transform[[2]][[name_i]]] = deriv[[2]][x_transform[[2]][[name_i]]] + (output_i[[2]] - output_0[[2]])/tol * X_ind[i,];
@@ -594,7 +615,7 @@ for (job_index_iter in c(1:100)) {
 
           for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
             x_transform_i = x_transform; x_transform_i[[1]][[name_i]]=x_transform_i[[1]][[name_i]]+ tol
-            output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = function(x) x, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
+            output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
                 output_i = f_output(output_hh_i);
             deriv[[1]][x_transform[[2]][[name_i]]] = (output_i[[1]] - output_0[[1]])/tol;
             deriv[[2]][x_transform[[2]][[name_i]]] = (output_i[[2]] - output_0[[2]])/tol;
@@ -619,7 +640,26 @@ for (job_index_iter in c(1:100)) {
         # deriv = deriv_1 + deriv_2*1000;
         output = (output_3_sqrt)^2 * length(sample_r_theta) + (output_2_sqrt)^2 * length(sample_r_theta);
         deriv = output_3_sqrt * 2 * deriv_3 * length(sample_r_theta) + output_2_sqrt * 2 * deriv_2 * length(sample_r_theta);
-        print('------VOLUNTARY HH---------')
+        print('------VOLUNTARY HH UNDER BD---------')
+        print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
+
+        if (Sys.info()[['sysname']] == 'Windows') {
+          clusterExport(cl, c('x_transform', 'sick_parameters', 'xi_parameters'),envir=environment())
+          deriv_list = parLapply(cl, out_sample_index, compute_deriv)
+        } else {
+          deriv_list = mclapply(out_sample_index, compute_deriv, mc.cores=numcores)
+        }
+        output_1 = do.call('c', lapply(deriv_list, function(x) x[[1]])) %>% sum
+        deriv_1 = do.call('rbind', lapply(deriv_list, function(x) x[[2]][[1]])) %>% colSums()
+        output_2_sqrt = (do.call('c', lapply(deriv_list, function(x) x[[3]][,3])) %>% mean - do.call('c', lapply(deriv_list, function(x) x[[3]][,4])) %>% mean)
+        output_3_sqrt = (do.call('c', lapply(deriv_list, function(x) x[[3]][,1])) %>% mean - do.call('c', lapply(deriv_list, function(x) x[[3]][,2])) %>% mean)
+        deriv_2 = 2 * output_2_sqrt * (do.call('rbind', lapply(deriv_list, function(x) x[[2]][[2]])) %>% colMeans())
+        deriv_3 = 2 * output_2_sqrt * (do.call('rbind', lapply(deriv_list, function(x) x[[2]][[3]])) %>% colMeans())
+        # output = output_1 + output_2_sqrt^2*1000; 
+        # deriv = deriv_1 + deriv_2*1000;
+        output = output + (output_3_sqrt)^2 * length(out_sample_index) + (output_2_sqrt)^2 * length(out_sample_index);
+        deriv = deriv + output_3_sqrt * 2 * deriv_3 * length(out_sample_index) + output_2_sqrt * 2 * deriv_2 * length(out_sample_index);
+        print('------VOLUNTARY HH UNDER PURE BUNDLING---------')
         print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
         # if (max(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))[,3]) == 0) {
         #   message('0 insured --- eliminate this value')
@@ -691,7 +731,7 @@ for (job_index_iter in c(1:100)) {
   param = param_final 
   transform_param_final = transform_param(param_final$other)
 
-  fit_sample = sample(Com_HH_list_index, 1000)
+  fit_sample = sample(Vol_HH_list_index, 1000)
 
   for (seed_number in c(1:1)) {
     if (Sys.info()[['sysname']] == 'Windows') {
@@ -736,15 +776,13 @@ for (job_index_iter in c(1:100)) {
 
   plot_1 = ggplot(data = rbind(predicted_data_summary, actual_data_summary), aes(x = Y2, y = mean_Vol_sts, color=type)) + geom_line() 
   plot_2 = ggplot(data = rbind(predicted_data_summary, actual_data_summary), aes(x = Y2, y = mean_m, color=type)) + geom_line() 
-  plot = gridExtra::grid.arrange(plot_1, plot_2, nrow=1)
+  # plot = gridExtra::grid.arrange(plot_1, plot_2, nrow=1)
 
   if (dir.exists('../../householdbundling_estimate')) {
     saveRDS(param_final, file=paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
-    saveRDS(plot, file=paste0('../../householdbundling_estimate/estimate_fit_',job_index,'.rds'))
   } else {
     dir.create('../../householdbundling_estimate') 
     saveRDS(param_final, file=paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
-    saveRDS(plot, file=paste0('../../householdbundling_estimate/estimate_fit_',job_index,'.rds'))
   }
 
   if (Sys.info()[['sysname']] == 'Windows') {
