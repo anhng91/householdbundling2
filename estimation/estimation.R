@@ -232,7 +232,7 @@ for (job_index_iter in c(1:100)) {
   initial_param_trial = init_param
   initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
   # initial_param_trial = rep(0, length(init_param))
-  # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.15;
+  # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.2;
   # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.2);
   # initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
   # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
@@ -375,8 +375,8 @@ for (job_index_iter in c(1:100)) {
     } else {
         output_short = list()
         fid = function(index) {
-            data_index_old = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE, realized_sick = FALSE),error=function(e) e)
-            f0 = moment_ineligible_hh(data_index_old, x_transform[[1]])
+            output_hh = tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE, realized_sick = FALSE),error=function(e) e)
+            f0 = moment_ineligible_hh(output_hh, x_transform[[1]])
             realized_sick = data_hh_list[[index]]$sick_dummy
             off_diag = function(x) {
               # diag(x) = 0; 
@@ -397,19 +397,18 @@ for (job_index_iter in c(1:100)) {
                 numerical_derivative = rep(0, length(f0[[1]])); numerical_derivative[i] = tol;
                 
                 if (name_i == 'beta_theta') {
-                  
-                  data_index_new = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i, realized_sick = FALSE);
-                  f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
+                  output_hh_i = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i, realized_sick = FALSE);
+                  f1 = moment_ineligible_hh(output_hh_i, x_transform[[1]])
                   mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
                   output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense))))) 
-                  deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * data_index_old$X_ind_year[i,];
+                  deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * output_hh$X_ind_year[i,];
                 } else {
                   
-                  data_index_new = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i, realized_sick = FALSE);
-                  f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
+                  output_hh_i = household_draw_theta_kappa_Rdraw(index, x_transform[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, short=FALSE, option_derivative = name_i, realized_sick = FALSE);
+                  f1 = moment_ineligible_hh(output_hh_i, x_transform[[1]])
                   mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
                   output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense)))))  
-                  deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * data_index_old$X_ind[i,];
+                  deriv[x_transform[[2]][[name_i]]] = deriv[x_transform[[2]][[name_i]]] + (output_i - output_0)/tol * output_hh$X_ind[i,];
                 }
               }
             }
@@ -418,7 +417,7 @@ for (job_index_iter in c(1:100)) {
             for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
               x_transform_i = x_transform; x_transform_i[[1]][[name_i]] = x_transform_i[[1]][[name_i]] + tol
               output_hh_i = household_draw_theta_kappa_Rdraw(index, x_transform_i[[1]], n_draw_halton, 10, sick_parameters, xi_parameters, u_lowerbar = -1, derivative_r_threshold = FALSE, derivative=FALSE, numerical_derivative = NA, short=FALSE, realized_sick = FALSE);
-                f1 = moment_ineligible_hh(data_index_new, x_transform[[1]])
+                f1 = moment_ineligible_hh(output_hh_i, x_transform_i[[1]])
                 mat_mimj_1 = f1[[1]] %*% t(f1[[1]]); diag(mat_mimj_1) = f1[[2]];
                 output_i =  sum((f1[[1]] - data_hh_list[[index]]$M_expense)^2) + sum(f_on_sqr(c(off_diag(mat_mimj_1) - off_diag(data_hh_list[[index]]$M_expense %*% t(data_hh_list[[index]]$M_expense))))) 
                 deriv[x_transform[[2]][[name_i]]] = (output_i - output_0)/tol;
@@ -614,7 +613,7 @@ for (job_index_iter in c(1:100)) {
 
           for (name_i in c('sigma_theta', 'sigma_thetabar')) { 
             x_transform_i = x_transform; x_transform_i[[1]][[name_i]]=x_transform_i[[1]][[name_i]]+ tol
-            output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE, derivative=TRUE, numerical_derivative = numerical_derivative, option_derivative = name_i);
+            output_hh_i = counterfactual_household_draw_theta_kappa_Rdraw(mini_data_index, x_transform_i[[1]], n_draw_halton, n_draw_gauss, sick_parameters, xi_parameters, u_lowerbar = -1, policy_mat_hh = policy_mat[[mini_data_index]], seed_number = 1, constraint_function = constraint_function, compute_WTP = FALSE, derivative=FALSE, numerical_derivative = NA, option_derivative = NA);
                 output_i = f_output(output_hh_i);
             deriv[[1]][x_transform[[2]][[name_i]]] = (output_i[[1]] - output_0[[1]])/tol;
             deriv[[2]][x_transform[[2]][[name_i]]] = (output_i[[2]] - output_0[[2]])/tol;
