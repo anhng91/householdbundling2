@@ -1496,7 +1496,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	random_xi_draws = matrix(NA, nrow = n_draw_halton, ncol=HHsize)
 	for (i in 1:HHsize) {
 		if (always_covered) {
-			random_xi_draws[,i] = 1; 
+			random_xi_draws[,i] = 1;
 		} else {
 			random_xi_draws[,i] = lapply(halton_mat_list$coverage[,i], function(x) ifelse(x <= p_0[i], 0, ifelse(x <= p_0[i] + p_1[i], 1, (x - p_0[i] - p_1[i])/(1 - p_0[i] - p_1[i])))) %>% unlist()
 		}

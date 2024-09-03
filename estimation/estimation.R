@@ -113,9 +113,9 @@ for (job_index_iter in c(1:100)) {
   sample_index = sample(1:length(data_hh_list), length(data_hh_list), replace=TRUE)
   if (mini) {
     message('estimating in mini mode')
-    sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/50), replace=TRUE)
-    sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/50), replace=TRUE)
-    out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/50), replace=TRUE)
+    sample_r_theta = sample(sample_r_theta_f, round(length(sample_r_theta_f)/200), replace=TRUE)
+    sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/200), replace=TRUE)
+    out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/200), replace=TRUE)
     sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
 
     n_draw_halton = 10;
@@ -233,7 +233,7 @@ for (job_index_iter in c(1:100)) {
   initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
   # initial_param_trial = rep(0, length(init_param))
   # initial_param_trial[x_transform[[2]]$beta_theta[1]] = -0.2;
-  # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.2);
+  # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.1);
   # initial_param_trial[x_transform[[2]]$beta_delta[1]] = 0;
   # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(0.1);
   # initial_param_trial[x_transform[[2]]$sigma_thetabar] = log(0.2);
@@ -637,7 +637,7 @@ for (job_index_iter in c(1:100)) {
         # output = output_1 + output_2_sqrt^2*1000; 
         # deriv = deriv_1 + deriv_2*1000;
         output = (output_3_sqrt)^2 * length(sample_r_theta) + (output_2_sqrt)^2 * length(sample_r_theta);
-        deriv = output_3_sqrt * 2 * deriv_3 * length(sample_r_theta) + output_2_sqrt * 2 * deriv_2 * length(sample_r_theta);
+        deriv =  output_3_sqrt * 2 * deriv_3 * length(sample_r_theta) + output_2_sqrt * 2 * deriv_2 * length(sample_r_theta);
         print('------VOLUNTARY HH UNDER BD---------')
         print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))))
 
@@ -729,7 +729,7 @@ for (job_index_iter in c(1:100)) {
   param = param_final 
   transform_param_final = transform_param(param_final$other)
 
-  fit_sample = sample(Vol_HH_list_index, 1000)
+  fit_sample = sample(Vol_HH_list_index, 5000)
 
   for (seed_number in c(1:1)) {
     if (Sys.info()[['sysname']] == 'Windows') {
@@ -774,7 +774,7 @@ for (job_index_iter in c(1:100)) {
 
   plot_1 = ggplot(data = rbind(predicted_data_summary, actual_data_summary), aes(x = Y2, y = mean_Vol_sts, color=type)) + geom_line() 
   plot_2 = ggplot(data = rbind(predicted_data_summary, actual_data_summary), aes(x = Y2, y = mean_m, color=type)) + geom_line() 
-  # plot = gridExtra::grid.arrange(plot_1, plot_2, nrow=1)
+  plots = gridExtra::grid.arrange(plot_1, plot_2, nrow=1)
 
   if (dir.exists('../../householdbundling_estimate')) {
     saveRDS(param_final, file=paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
