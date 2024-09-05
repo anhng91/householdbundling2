@@ -1347,6 +1347,8 @@ uniroot_usr = function(f, interval_init) {
 #' @param numerical_derivative is an option (to compute numerical derivative, only active if derivative=TRUE)
 #' @param option_derivative whether derivative is wr.r.t beta_theta_ind or beta_theta
 #' @param always_covered logical, TRUE if xi is always 1.
+#' @param penalty a numerical value. If positive, household pays a penalty for every uninsured member. 
+#' @param risk_discrimination a function of beta_theta; represents risk-based pricing
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1357,7 +1359,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE) {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE, penalty = 0, risk_discrimination_dummy = FALSE, risk_discrimination = function(x) 0) {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1551,7 +1553,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		for (i in elig_member_index) {
 			kappa_draw_onlyi = kappa_draw[[data_hh_i$HHsize_s[1] + 1]]
 			kappa_draw_onlyi[,setdiff(elig_member_index, i)] = 1
-			un_censored_R_uni[[i]] = income_vec[2] - rowSums(theta_draw * kappa_draw_onlyi)
+			un_censored_R_uni[[i]] = income_vec[2] - rowSums(theta_draw * kappa_draw_onlyi) - risk_discrimination(theta_bar[i])
 			R_draw_onlyi =  un_censored_R_uni[[i]]
 			kappa_draw_uni[[i]] = kappa_draw_onlyi
 			U_uni[i] = cara(U(list(theta_draw = theta_draw, R_draw = R_draw_onlyi, kappa_draw = kappa_draw_onlyi, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect))
@@ -1567,26 +1569,29 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 				kappa_draw[[n_insured + 1]] = kappa_draw[[n_insured]];
 				kappa_draw[[n_insured + 1]][,member_order[n_insured]] = kappa_draw[[data_hh_i$HHsize_s[1] + 1]][,member_order[n_insured]]
 			}
-			un_censored_R[[1 + n_insured]] = income_vec[n_insured + 1] - rowSums(theta_draw * kappa_draw[[1 + n_insured]])
+			un_censored_R[[1 + n_insured]] = income_vec[n_insured + 1] - rowSums(theta_draw * kappa_draw[[1 + n_insured]]) - sum(risk_discrimination(theta_bar[member_order[1:n_insured]]))
 
-			R_draw[[1 + n_insured]] =  un_censored_R[[1 + n_insured]]
+			R_draw[[1 + n_insured]] =  un_censored_R[[1 + n_insured]] - penalty * (data_hh_i$HHsize_s[1] - n_insured)
 			# print(paste0('kappa_draw at n_insured = ', n_insured))
 			# print(kappa_draw[[n_insured + 1]])
 
 			# U[[1 + n_insured]] = cara(U_without_ulowerbar * (R_draw[[1 + n_insured]] > 0) + (R_draw[[1 + n_insured]] == 0) * (income_vec[n_insured + 1] - rowSums(theta_draw * kappa_draw_ordered[[1 + n_insured]]) + u_lowerbar))
+			print(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect))
+			print(cara(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)))
 			U_list[[1 + n_insured]] = cara(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)) 
 			# print(U_list[[1 + n_insured]])
 		}
 
 		# impose affordability constraint
-		for (n_insured in 1:(data_hh_i$HHsize_s[1])) {
-			if (income_vec[[n_insured + 1]] < 0) {
-				U_list[[n_insured + 1]] = -Inf
-			}
-		}
+		# for (n_insured in 1:(data_hh_i$HHsize_s[1])) {
+		# 	if (income_vec[[n_insured + 1]] < 0) {
+		# 		U_list[[n_insured + 1]] = -Inf
+		# 	}
+		# }
 
 		optimal_U_index = sort(constraint_function(unlist(U_list)), index.return=TRUE, decreasing=TRUE)$ix[1]
-
+		print(U_list)
+		print(constraint_function(unlist(U_list)))
 		optimal_U_index = max(which(unlist(U_list) == U_list[optimal_U_index]))
 
 		vol_sts_counterfactual = rep(0, HHsize);
