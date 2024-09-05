@@ -15,7 +15,7 @@ if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | grepl("vpn", Sys.info()[
   mini=TRUE
   numcores = 4; 
 } else {
-  mini=TRUE
+  mini=FALSE
 }
 
 options("install.lock"=FALSE)
