@@ -1576,8 +1576,6 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 			# print(kappa_draw[[n_insured + 1]])
 
 			# U[[1 + n_insured]] = cara(U_without_ulowerbar * (R_draw[[1 + n_insured]] > 0) + (R_draw[[1 + n_insured]] == 0) * (income_vec[n_insured + 1] - rowSums(theta_draw * kappa_draw_ordered[[1 + n_insured]]) + u_lowerbar))
-			print(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect))
-			print(cara(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)))
 			U_list[[1 + n_insured]] = cara(U(list(theta_draw = theta_draw, R_draw = R_draw[[1 + n_insured]], kappa_draw = kappa_draw[[1 + n_insured]], gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)) 
 			# print(U_list[[1 + n_insured]])
 		}
