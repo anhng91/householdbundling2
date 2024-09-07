@@ -31,7 +31,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-# devtools::install(upgrade='never')
+devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
