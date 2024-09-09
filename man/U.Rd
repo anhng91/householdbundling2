@@ -4,10 +4,14 @@
 \alias{U}
 \title{Compute direct utility function}
 \usage{
-U(input, income_effect = TRUE)
+U(input, income_effect = TRUE, diagnosis = FALSE)
 }
 \arguments{
 \item{input}{is a list of all input components.}
+
+\item{income_effect}{is whether income effect is allowed, default to TRUE}
+
+\item{diagnosis}{logical value, default to FALSE}
 }
 \value{
 a vector of utility realization

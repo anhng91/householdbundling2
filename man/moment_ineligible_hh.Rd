@@ -4,12 +4,14 @@
 \alias{moment_ineligible_hh}
 \title{Compute the moments of ineligible households}
 \usage{
-moment_ineligible_hh(data_set, param)
+moment_ineligible_hh(data_set, param, full_output = FALSE)
 }
 \arguments{
 \item{data_set}{This is a list that contains all pre-computed elements of each household .}
 
 \item{param}{This is a list, each element is a coefficient (i.e., a vector) of a preference parameter (beta_gamma, beta_omega, beta_delta, beta_theta, beta_theta_ind) and the standard deviations of the unobserved heterogeneity (sigma_gamma, sigma_omega, sigma_delta, sigma_theta, sigma_thetabar)}
+
+\item{full_output}{logical value, if FALSE, return values conditional on draws of theta}
 }
 \value{
 a list. The first element is the expected value of m|Y,k. The second element is the expected value of m^2|Y,k. The third and the fourth elements are their respective derivatives with respect to the preference parameters.

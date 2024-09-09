@@ -12,7 +12,12 @@ household_draw_theta_kappa_Rdraw(
   sick_parameters,
   xi_parameters,
   u_lowerbar = -10,
-  short = TRUE
+  short = TRUE,
+  derivative_r_threshold = FALSE,
+  derivative = FALSE,
+  numerical_derivative = NA,
+  option_derivative = "beta_theta_ind",
+  realized_sick = FALSE
 )
 }
 \arguments{
@@ -31,6 +36,16 @@ household_draw_theta_kappa_Rdraw(
 \item{u_lowerbar}{value of utility when income constraint is violated}
 
 \item{short}{if TRUE, does not return dataframe of the original data}
+
+\item{derivative_r_threshold}{logical value, TRUE if want to compute the derivative of the r threshold w.r.t household and individual parameters.}
+
+\item{derivative}{logical value, TRUE if want to compute derivative w.r.t theta parameters}
+
+\item{numerical_derivative}{is an option (to compute numerical derivative, only active if derivative=TRUE)}
+
+\item{option_derivative}{whether derivative is wr.r.t beta_theta_ind or beta_theta}
+
+\item{realized_sick}{Logical. If TRUE, set sick_dummy == data's value.}
 }
 \value{
 a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage. This does not take into account estimated preference parameters or unconditional distribution of health shocks. See \code{compute_expected_U_m} for the draws post-estimation of preference parameters and health shocks distribution.

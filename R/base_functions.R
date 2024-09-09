@@ -470,26 +470,14 @@ all_insurance = function(vec_) {
 #' U(list(R_draw = runif(10), theta_draw = cbind(runif(10)/10, runif(10)/10), delta = c(0.5, 0.5), omega=0.1, gamma = c(0.5, 0.5), kappa_draw = matrix(1, nrow=10, ncol=2), HHsize = 2))
 #' 
 U = function(input, income_effect=TRUE, diagnosis = FALSE) {
-	if (!income_effect) {
-		output = input$R_draw
+	if (1 == 0) {
+		output = input$R_draw + 1
 	} else {
 		input$R_draw = input$R_draw 
-		output = lapply(((input$R_draw * (input$R_draw > 0) + 1)^(1 - input$omega)-1)/(1 - input$omega), function(x) ifelse(is.nan(x), 0, x)) %>% unlist() - rowSums(matrix(t(apply(input$theta_draw, 1, function(x) x * input$delta)), ncol=input$HHsize) * matrix(t(apply(input$kappa_draw, 1, function(x) ((x + 1)^(1 - input$gamma) - 1)/(1 - input$gamma))), ncol = input$HHsize));
+		R_transformed = ((input$R_draw * (input$R_draw > 0) + 1)^(1 - input$omega) - 1)/(1 - input$omega)
+		output = lapply(1:length(R_transformed), function(index) ifelse(is.nan(R_transformed[index]), log(input$R_draw[index] * (input$R_draw[index] > 0) + 1), R_transformed[index])) %>% unlist() + (input$R_draw + 1) * (input$R_draw <= 0) - rowSums(matrix(t(apply(input$theta_draw, 1, function(x) x * input$delta)), ncol=input$HHsize) * matrix(t(apply(input$kappa_draw, 1, function(x) ((x + 1)^(1 - input$gamma) - 1)/(1 - input$gamma))), ncol = input$HHsize));
 		output_orig = output;
 		min_output = min(output, na.rm=TRUE); 
-
-		if (length(which(input$R_draw < 0)) > 0){
-			output = output; 
-		}
-
-		if (length(which(input$R_draw > 0)) > 0) {
-			output[which(input$R_draw <= 0)] = min_output; 
-			#input$R_draw[which(input$R_draw < 0)];
-		} else {
-			output = input$R_draw 
-		}
-
-
 		if (diagnosis) {
 			print('before transform')
 			print(summary(output_orig))
@@ -1120,7 +1108,7 @@ grad_llh_xi = function(beta, data) {
 #' @export
 #'
 #' @examples
-#' 1_theta(sample_data_and_parameter[[2]], sample_data_and_parameter[[1]])
+#' identify_theta(sample_data_and_parameter[[2]], sample_data_and_parameter[[1]])
 #'
 #' 
 identify_theta = function(data_set, param, n_draw_halton = 1000) {
@@ -1235,6 +1223,81 @@ identify_theta = function(data_set, param, n_draw_halton = 1000) {
 
 	return(list(f0, derivative_param))
 	
+}
+
+
+#' Compute the LLH of medical expenditure.
+#'
+#' @param data_set A list produced by household_draw_theta_kappa_Rdraw
+#' @param param This is a list, each element is a coefficient (i.e., a vector) of a preference parameter (beta_gamma, beta_omega, beta_delta, beta_theta, beta_theta_ind) and the standard deviations of the unobserved heterogeneity (sigma_gamma, sigma_omega, sigma_delta, sigma_theta, sigma_thetabar)
+#' @param n_draw_halton number of halton draws
+#' 
+#' @return a list. The first element is the LLH, the second element is the derivative with respect to beta_theta, beta_theta_ind, and sigma_thetabar
+#' 
+#' @import mvtnorm
+#' 
+#' @export
+#'
+#' @examples
+#' identify_theta_analytical(1, transform_param(init_param, return_index=TRUE)[[1]])
+#'
+#' 
+identify_theta_analytical = function(index, param, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind') {
+	tol = 1e-3;
+	oop_0_const = 1e-20;
+
+	data_hh_i = data_hh_list[[index]];
+	policy_mat_hh_index = policy_mat[[index]];
+	hh_index = index; 
+	income_vec = Income_net_premium[[index]];
+	X_ind = var_ind(data_hh_i) 
+	X_hh = var_hh(data_hh_i);
+
+	HHsize = data_hh_i$HHsize[1]
+	mean_beta_theta = c(cbind(X_ind, data_hh_i$Year == 2004, data_hh_i$Year == 2006, data_hh_i$Year == 2010, data_hh_i$Year == 2012) %*% param$beta_theta);
+	mean_beta_theta_ind = c(X_ind %*% param$beta_theta_ind);
+
+	if (derivative) {
+		if (option_derivative == 'beta_theta') {
+			mean_beta_theta = mean_beta_theta + numerical_derivative
+		} else if (option_derivative == 'beta_theta_ind') {
+			mean_beta_theta_ind = mean_beta_theta_ind + numerical_derivative
+		}
+	}
+
+	mean_beta_omega = X_hh %*% param$beta_omega; 
+	mean_beta_delta = X_ind %*% param$beta_delta;
+	mean_beta_gamma = X_ind %*% param$beta_gamma; 
+	mean_beta_r = X_hh %*% param$beta_r;
+
+	sigma_theta = exp(param$sigma_theta)
+	sigma_thetabar = exp(param$sigma_thetabar)
+
+	if (derivative) {
+		if (option_derivative == 'sigma_theta') {
+			sigma_theta = exp(param$sigma_theta + numerical_derivative)
+		} else if (option_derivative == 'sigma_thetabar') {
+			sigma_thetabar = exp(param$sigma_thetabar + numerical_derivative)
+		}
+	}
+
+	cov_matrix = mean_beta_theta_ind %*% t(mean_beta_theta_ind); 
+	diag(cov_matrix) = diag(cov_matrix) + sigma_theta^2 + sigma_thetabar^2; 
+	lower_mat = base::chol(cov_matrix)
+	lower_mat = c(lower_mat)[c(lower.tri(lower_mat, diag=TRUE))]
+
+	which_m_0 = data_hh_i$M_expense == 0
+
+	if (sum(which_m_0) > 0 & sum(!which_m_0) > 0) {
+		output = mvtnorm::ldpmvnorm(obs=matrix(data_hh_i$M_expense[!which_m_0], ncol=1) , lower=matrix(rep(0, HHsize)[which_m_0], ncol=1), matrix(rep(Inf, HHsize)[which_m_0], ncol=1), mean = c(mean_beta_theta[!which_m_0], mean_beta_theta[which_m_0]), chol=ltMatrices(lower_mat, diag=TRUE), logLik = TRUE, M = 1, fast=TRUE)
+	} else if (sum(which_m_0) == 0) {
+		output = mvtnorm::ldmvnorm(obs=matrix(data_hh_i$M_expense[!which_m_0], ncol=1) , mean = c(mean_beta_theta[!which_m_0], mean_beta_theta[which_m_0]), chol=ltMatrices(lower_mat, diag=TRUE), logLik = TRUE)
+	} else {
+		output = mvtnorm::lpmvnorm(lower=matrix(rep(0, HHsize)[which_m_0], ncol=1), matrix(rep(Inf, HHsize)[which_m_0], ncol=1), mean = c(mean_beta_theta[!which_m_0], mean_beta_theta[which_m_0]), chol=ltMatrices(lower_mat, diag=TRUE), logLik = TRUE, M = 1, fast=TRUE)
+	}
+
+	
+	return(list(output, mean_beta_theta, diag(cov_matrix)))
 }
 
 #' Construct parameters list.
@@ -1365,6 +1428,7 @@ uniroot_usr = function(f, interval_init) {
 #' @param always_covered logical, TRUE if xi is always 1.
 #' @param penalty a numerical value. If positive, household pays a penalty for every uninsured member. 
 #' @param risk_discrimination a function of beta_theta; represents risk-based pricing
+#' @param afford whether to impose a constraint that a household with negative income cannot purchase insurance. default to TRUE 
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1375,7 +1439,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE, penalty = 0, risk_discrimination_dummy = FALSE, risk_discrimination = function(x) 0) {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE, penalty = 0, risk_discrimination_dummy = FALSE, risk_discrimination = function(x) 0, afford=TRUE) {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1471,6 +1535,8 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 	m = matrix(NA, nrow = nrow(halton_mat), ncol = HHsize)
 
+	# print('beta_theta = '); print(beta_theta)
+	# print('theta_bar = '); print(theta_bar)
 	theta_draw = matrix(t(apply(halton_mat_list$theta, 1, function(x) {
 		output = qnorm(x) * s_theta + theta_bar 
 		output = lapply(output, function(y) {y[which(y < 0)] = 0; return(y)}) %>% unlist()
@@ -1547,6 +1613,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		U_list = list()
 
 		cara = function(x) {
+			# print(x)
 			if (r != 0) {
 				return(mean((1-exp(-r * x))/r, na.rm=TRUE))
 			} else {
@@ -1577,6 +1644,11 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 		member_order = elig_member_index[sort(U_uni[elig_member_index], index.return=TRUE, decreasing=TRUE)$ix]
 
+		# print('theta_draw = '); print(theta_draw); 
+		# print('gamma = '); print(gamma)
+		# print('delta = '); print(delta);
+		# print('omega = '); print(omega); 
+
 		for (n_insured in 0:(data_hh_i$HHsize_s[1] -1)) {
 			if (n_insured == 0){
 				kappa_draw[[n_insured + 1]] = kappa_draw[[data_hh_i$HHsize_s[1] + 1]]
@@ -1597,11 +1669,13 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		}
 
 		# impose affordability constraint
-		# for (n_insured in 1:(data_hh_i$HHsize_s[1])) {
-		# 	if (income_vec[[n_insured + 1]] < 0) {
-		# 		U_list[[n_insured + 1]] = -Inf
-		# 	}
-		# }
+		if (afford) {
+			for (n_insured in 1:(data_hh_i$HHsize_s[1])) {
+				if (income_vec[[n_insured + 1]] < 0) {
+					U_list[[n_insured + 1]] = -Inf
+				}
+			}
+		}
 
 		optimal_U_index = sort(constraint_function(unlist(U_list)), index.return=TRUE, decreasing=TRUE)$ix[1]
 		optimal_U_index = max(which(unlist(U_list) == U_list[optimal_U_index]))
@@ -1622,7 +1696,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 				kappa_draw_2 = list_2$kappa_draw;
 				U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
 				U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
-				plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
+				# plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
 				return(cara(U1) - cara(U2))
 			}
 

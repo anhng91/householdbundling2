@@ -19,7 +19,17 @@ counterfactual_household_draw_theta_kappa_Rdraw(
   constraint_function,
   within_hh_heterogeneity = list(omega = TRUE, gamma = TRUE, delta = TRUE, theta_bar =
     TRUE),
-  income_vec = NA
+  income_vec = NA,
+  contraction_variance = 1,
+  compute_WTP = TRUE,
+  derivative = FALSE,
+  numerical_derivative = NA,
+  option_derivative = "beta_theta_ind",
+  always_covered = FALSE,
+  penalty = 0,
+  risk_discrimination_dummy = FALSE,
+  risk_discrimination = function(x) 0,
+  afford = TRUE
 )
 }
 \arguments{
@@ -44,6 +54,24 @@ counterfactual_household_draw_theta_kappa_Rdraw(
 \item{within_hh_heterogeneity}{is a list with list names gamma, delta, and theta_bar. If a list element is true, within-hh-heterogeneity is allowed.}
 
 \item{income_vec}{a vector of income net premium at different number of voluntarily insured members (from 0 to HHsize_s)}
+
+\item{contraction_variance}{is a numerical value to change the within-hh covariance matrix (towards 0)}
+
+\item{compute_WTP}{logical, TRUE if want to produce WTP}
+
+\item{derivative}{logical value, TRUE if want to compute derivative w.r.t theta parameters}
+
+\item{numerical_derivative}{is an option (to compute numerical derivative, only active if derivative=TRUE)}
+
+\item{option_derivative}{whether derivative is wr.r.t beta_theta_ind or beta_theta}
+
+\item{always_covered}{logical, TRUE if xi is always 1.}
+
+\item{penalty}{a numerical value. If positive, household pays a penalty for every uninsured member.}
+
+\item{risk_discrimination}{a function of beta_theta; represents risk-based pricing}
+
+\item{afford}{whether to impose a constraint that a household with negative income cannot purchase insurance. default to TRUE}
 }
 \value{
 a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
