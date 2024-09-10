@@ -1763,6 +1763,16 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	output$beta_r = rep(beta_r, HHsize)
 	output$beta_delta = beta_delta
 	output$vol_sts = data_hh_i$Vol_sts
+	if (data_hh_i$Year[1] == 2006 & sum(data_hh_i$Vol_sts) != data_hh_i$HHsize_s[1]) {
+		noins_reason = data_hh_i$noins_reason[which(!(is.na(data_hh_i$noins_reason)))]
+		if (length(noins_reason) > 0) {
+		  if (any(noins_reason == 7)) {
+		    realized_vol_sts = 1 - (data_hh_i$Bef_sts + data_hh_i$Com_sts + data_hh_i$Std_w_ins)
+		    output$vol_sts = realized_vol_sts
+		  } 
+		}
+	}
+	
 	output$Bef_sts = data_hh_i$Bef_sts; output$Com_sts = data_hh_i$Com_sts;  output$Std_w_ins = data_hh_i$Std_w_ins
 	output$optional_care = optional_care
 	output$wtp_2 = wtp_2
