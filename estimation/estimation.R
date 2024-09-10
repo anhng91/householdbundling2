@@ -857,6 +857,9 @@ for (job_index_iter in c(1:100)) {
 
   fit_values = as.data.frame(fit_values)
   fit_values$job_index = job_index
+  if (!(dir.exists('../../Obj_for_manuscript'))) {
+    dir.create('../../Obj_for_manuscript')
+  }
   saveRDS(fit_values, file=paste0('../../Obj_for_manuscript/fit_values',job_index,'.rds'))
 
   if (dir.exists('../../householdbundling_estimate')) {
@@ -869,7 +872,7 @@ for (job_index_iter in c(1:100)) {
   if (Sys.info()[['sysname']] == 'Windows') {
     stopCluster(cl)
   }
-  
+
   next 
 
   predicted_data_summary = fit_values  %>% mutate(Y2 = as.numeric(Hmisc::cut2(Y, g=5))) %>% group_by(Y2, fit_type) %>% summarise(mean_Vol_sts = mean(vol_sts_counterfactual), mean_m = mean(m, na.rm=TRUE), mean_observed_vol = mean(vol_sts, na.rm=TRUE), mean_observed_m = mean(m_observed, na.rm=TRUE)) 
@@ -879,7 +882,7 @@ for (job_index_iter in c(1:100)) {
   graph_data$m = c(predicted_data_summary$mean_m, predicted_data_summary$mean_observed_m)
   graph_data$vol = c(predicted_data_summary$mean_Vol_sts, predicted_data_summary$mean_observed_vol
     )
-  plot_1 = ggplot(data = graph_data, aes(x = Y2, y = vol, linetype=type, color = as.factor(fit_type))) + geom_line() 
-  plot_2 = ggplot(data = graph_data, aes(x = Y2, y = m, linetype=type, color = as.factor(fit_type))) + geom_line() 
-  plots = gridExtra::grid.arrange(plot_1, plot_2, nrow=1)
+  plot_1 = ggplot(data = graph_data, aes(x = Y2, y = vol, linetype=type, color = as.factor(fit_type))) + geom_line(linewidth=1) + theme_bw() + ylab('Voluntarily insured fraction') + scale_color_manual(labels = c("involuntary SHI", "voluntary SHI (BD)", "voluntary SHI (PB)"), values=c('red','black','blue'), name=NULL) + scale_linetype(labels = c('Actual', 'Predicted'), name=NULL) + xlab('Income ranges')
+  plot_2 = ggplot(data = graph_data, aes(x = Y2, y = m, linetype=type, color = as.factor(fit_type))) + geom_line(linewidth=1) + theme_bw() + ylab('Average OOP') + scale_color_manual(labels = c("involuntary SHI", "voluntary SHI (BD)", "voluntary SHI (PB)"), values=c('red','black','blue'), name=NULL) + scale_linetype(labels = c('Actual', 'Predicted'), name=NULL) + xlab('Income ranges')
+  plots = ggpubr::ggarrange(plot_1, plot_2, nrow=1, common.legend = TRUE, legend="bottom") 
 }
