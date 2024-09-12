@@ -857,8 +857,7 @@ for (job_index_iter in c(1:100)) {
 
   fit_values = as.data.frame(fit_values)
   fit_values$job_index = job_index
-  rm(save_output)
-  rm(fit_values)
+  
   if (!(dir.exists('../../Obj_for_manuscript'))) {
     dir.create('../../Obj_for_manuscript')
   }
@@ -871,6 +870,9 @@ for (job_index_iter in c(1:100)) {
     saveRDS(param_final, file=paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
   }
 
+  rm(save_output)
+  rm(fit_values)
+  
   if (Sys.info()[['sysname']] == 'Windows') {
     stopCluster(cl)
   }
