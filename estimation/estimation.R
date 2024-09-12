@@ -31,7 +31,7 @@ library(randtoolbox)
 library(fastDummies)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 message('constructing the list of Compulsory households')
@@ -274,22 +274,22 @@ for (job_index_iter in c(1:100)) {
       })
       n_draw_here = data_hh_list_pref[[1]]$theta_draw %>% nrow()
       mat_YK = do.call('cbind', parLapply(cl, data_hh_list_pref, function(x) {
-            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_here)), (x$income[1] + 2), colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here))*(x$income[1] + 2))
+            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_here)), (x$income[1]), colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here))*(x$income[1]))
             return(output)
           }))
     } else {
       data_hh_list_pref = mclapply(sample_identify_pref, function(index) tryCatch(household_draw_theta_kappa_Rdraw(hh_index=index, param=x_transform[[1]], n_draw_halton = n_draw_halton, n_draw_gauss = n_draw_gauss, sick_parameters, xi_parameters, short=FALSE, realized_sick = TRUE), error=function(e) e), mc.cores=numcores)
       n_draw_here = data_hh_list_pref[[1]]$theta_draw %>% nrow()
       mat_YK = do.call('cbind', mclapply(data_hh_list_pref, function(x) {
-            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_here)), (x$income[1] + 2), colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here))*(x$income[1] + 2))
+            output = rbind(colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here)), colMeans(matrix(x$kappa_draw[[1]]^2, nrow=n_draw_here)), (x$income[1]), colMeans(matrix(x$kappa_draw[[1]], nrow=n_draw_here))*(x$income[1]))
             return(output)
           }, mc.cores=numcores))
     }
 
 
-    mat_YK = rbind(1, mat_YK)
-    mat_YK = apply(mat_YK, 2, function(x) {x[which(is.nan(x))] = 0; return(x)})
-    mat_YK = mat_YK[c(1,2,4),];
+    # mat_YK = rbind(1, mat_YK)
+    # mat_YK = apply(mat_YK, 2, function(x) {x[which(is.nan(x))] = 0; return(x)})
+    # mat_YK = mat_YK[c(1,2,4),];
 
     mini_f = function(x_transform, return_long = FALSE) {
       if (Sys.info()[['sysname']] == 'Windows') {
@@ -472,7 +472,6 @@ for (job_index_iter in c(1:100)) {
   X_ind_sample_r_theta = do.call('rbind', data_hh_list[sample_r_theta]);
   X_ind_sample_r_theta = X_ind_sample_r_theta %>% mutate(Y2 = as.numeric(Hmisc::cut2(Income, g=5)))
   X_ind_sample_r_theta = X_ind_sample_r_theta %>% mutate(Y21 = Y2 == 1, Y22 = Y2 == 2, Y23 = Y2 == 3, Y24 = Y2 == 4, Y25 = Y2 == 5)
-  # X_ind_sample_r_theta = cbind(var_ind(X_ind_sample_r_theta), X_ind_sample_r_theta$Year == 2004, X_ind_sample_r_theta$Year == 2006, X_ind_sample_r_theta$Year == 2010, X_ind_sample_r_theta$Year == 2012)
   X_ind_sample_r_theta = as.matrix(X_ind_sample_r_theta %>% select(Y21, Y22, Y23, Y24, Y25))
   
   normalize_constant = 0;
@@ -644,6 +643,7 @@ for (job_index_iter in c(1:100)) {
         } else {
           deriv_list = mclapply(sample_r_theta, compute_deriv, mc.cores=numcores)
         }
+
         output_1 = do.call('c', lapply(deriv_list, function(x) x[[1]])) %>% sum
         deriv_1 = do.call('rbind', lapply(deriv_list, function(x) x[[2]][[1]])) %>% colSums()
         output_2_sqrt = apply(X_ind_sample_r_theta, 2, function(x) (((x[index_type_2] * do.call('c', lapply(deriv_list, function(x) x[[3]][,3]))[index_type_2] + normalize_constant) %>% mean) %>% log - ((x[index_type_2] * do.call('c', lapply(deriv_list, function(x) x[[3]][,4]))[index_type_2]) %>% mean + normalize_constant) %>% log))
@@ -666,8 +666,8 @@ for (job_index_iter in c(1:100)) {
         print(paste0('output_3_sqrt = ', output_3_sqrt))
         print(paste0('output_2_sqrt = ', output_2_sqrt))
 
-        output = output_1 + sum((output_4_sqrt)^2) * length(out_sample_index) + sum((output_3_sqrt)^2) * length(out_sample_index) + sum((output_2_sqrt)^2) * length(out_sample_index);
-        deriv =  deriv_1 + colSums(deriv_4) * length(out_sample_index) +  colSums(deriv_3) * length(out_sample_index) +  colSums(deriv_2) * length(out_sample_index);
+        output = 0 * output_1 + sum((output_4_sqrt)^2) * length(out_sample_index) + sum((output_3_sqrt)^2) * length(out_sample_index) + sum((output_2_sqrt)^2) * length(out_sample_index);
+        deriv =  0 * deriv_1 + colSums(deriv_4) * length(out_sample_index) +  colSums(deriv_3) * length(out_sample_index) +  colSums(deriv_2) * length(out_sample_index);
         print('------VOLUNTARY HH UNDER BD---------')
         print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))[index_type_2,]))
         # print(summary(do.call('rbind', lapply(deriv_list, function(x) x[[3]]))[index_type_2 & which(X_ind_sample_r_theta[,1] == 1),]))
@@ -796,7 +796,7 @@ for (job_index_iter in c(1:100)) {
 
   optim_pref_theta = splitfngr::optim_share(initial_param_trial[index_theta_only], function(x) {
     print('x at optim_pref_theta = '); print(x)
-    if (max(abs(x[-c(1,2)])) > 4) {
+    if (max(abs(x[-c(1,2)])) > 10) {
       return(list(NA, rep(NA, length(index_theta_only))))
     }
     output = try(optim_f(x, include_r = TRUE, include_pref=TRUE, recompute_pref = TRUE, include_pure_bundling = TRUE))
@@ -824,7 +824,7 @@ for (job_index_iter in c(1:100)) {
   param = param_final 
   transform_param_final = transform_param(param_final$other)
 
-  fit_sample = c(Com_HH_list_index, Vol_HH_list_index, out_sample_index_f)
+  fit_sample = c(Vol_HH_list_index, Com_HH_list_index, out_sample_index)
 
   for (seed_number in c(1:1)) {
     fit_f = function(id) {
@@ -857,6 +857,8 @@ for (job_index_iter in c(1:100)) {
 
   fit_values = as.data.frame(fit_values)
   fit_values$job_index = job_index
+  rm(save_output)
+  rm(fit_values)
   if (!(dir.exists('../../Obj_for_manuscript'))) {
     dir.create('../../Obj_for_manuscript')
   }

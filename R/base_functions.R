@@ -570,7 +570,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 	p_0 = exp(draw_p_xi_0)/(1 + exp(draw_p_xi_0) + exp(draw_p_xi_1))
 	p_1 = exp(draw_p_xi_1)/(1 + exp(draw_p_xi_1) + exp(draw_p_xi_0))
 	sick_p = 1 - c(1/(1 + exp(X_ind %*% sick_parameters$par)))
-	halton_mat = pnorm(rnorm(n_draw_halton * (HHsize * 6 + 2))) %>% matrix(nrow = n_draw_halton)
+	halton_mat = randtoolbox::torus(n_draw_halton, (HHsize * 6 + 2), mixed=TRUE) %>% matrix(nrow = n_draw_halton)
 	halton_mat_list = list()
 	halton_mat_list$household_random_factor = qnorm(halton_mat[,HHsize * 6 + 1]) ; 
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
@@ -627,7 +627,7 @@ household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 100
 			if (!realized_sick) {
 				theta_draw[,i] = qnorm(halton_mat_list$theta[,i]) * s_theta + theta_bar[,i]
 			} else {
-				theta_draw[,i] = (qnorm(halton_mat_list$theta[,i] * pnorm(-theta_bar[,i], lower.tail=TRUE) + (1 - halton_mat_list$theta[,i])) * s_theta + theta_bar[,i]) * data_hh_i$sick_dummy[i]
+				theta_draw[,i] = (qnorm(halton_mat_list$theta[,i] * pnorm(-theta_bar[,i]/s_theta, lower.tail=TRUE) + (1 - halton_mat_list$theta[,i])) * s_theta + theta_bar[,i]) * data_hh_i$sick_dummy[i]
 			}
 			
 
@@ -1362,7 +1362,7 @@ transform_param = function(param_trial, return_index=FALSE, init=FALSE) {
 #'
 #'
 uniroot_usr = function(f, interval_init) {
-	if (abs(f(interval_init[1])) < 1e-5) {
+	if (abs(f(interval_init[1])) < 1e-6) {
 		output = list(); 
 		output$root = interval_init[1]
 		return(output)
@@ -1372,34 +1372,41 @@ uniroot_usr = function(f, interval_init) {
 			output$root = NA; 
 			return(output) 
 		} else {
-			if (f(interval_init[2]) > 0) {
-				output = uniroot(f, interval_init);
-				if (output$f.root > 1e-2) {
-					message(paste0('root is not achieved despite appropriate value range. Stopping value is equal to ', output$f.root))
-				}
-				return(output)
-			} else {
-				while (f(interval_init[2]) < 0 & interval_init[2] < 10) {
-					interval_init[2] = interval_init[2] + 0.2
-				}
-				if (f(interval_init[2]) < 0) {
-					if (f(0.01) > 0) {
-						output = uniroot(f, c(interval_init[1], 0.01))
-					} else {
-						output = list()
-						output$root = NA; 
-					}
-					
-				} else {
-					output = uniroot(f, interval_init); 
-				}
-				if (!(is.na(output$root))) {
+			if (!(is.na(f(interval_init[2])))) {
+				if (f(interval_init[2]) > 0) {
+					output = uniroot(f, interval_init);
 					if (output$f.root > 1e-2) {
 						message(paste0('root is not achieved despite appropriate value range. Stopping value is equal to ', output$f.root))
 					}
+					return(output)
+				} else {
+					while (f(interval_init[2]) < 0 & interval_init[2] < 10) {
+						interval_init[2] = interval_init[2] + 0.2
+					}
+					if (f(interval_init[2]) < 0) {
+						if (f(0.01) > 0) {
+							output = uniroot(f, c(interval_init[1], 0.01))
+						} else {
+							output = list()
+							output$root = NA; 
+						}
+						
+					} else {
+						output = uniroot(f, interval_init); 
+					}
+					if (!(is.na(output$root))) {
+						if (output$f.root > 1e-2) {
+							message(paste0('root is not achieved despite appropriate value range. Stopping value is equal to ', output$f.root))
+						}
+					}
+					
+					return(output)
 				}
-				
-				return(output)
+			} else {
+				output = list(); 
+				output$root = NA; 
+				output$f.root = NA; 
+				return(output)		
 			}
 		}
 	}
@@ -1450,7 +1457,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	p_0 = exp(draw_p_xi_0)/(1 + exp(draw_p_xi_0) + exp(draw_p_xi_1))
 	p_1 = exp(draw_p_xi_1)/(1 + exp(draw_p_xi_1) + exp(draw_p_xi_0))
 	sick_p = 1 - c(1/(1 + exp(X_ind %*% sick_parameters$par)))
-	halton_mat = pnorm(rnorm(n_draw_halton * (HHsize * 6 + 2))) %>% matrix(nrow = n_draw_halton)
+	halton_mat = randtoolbox::torus(n_draw_halton, (HHsize * 6 + 2), mixed=TRUE) %>% matrix(nrow = n_draw_halton)
 	halton_mat_list = list()
 	halton_mat_list$household_random_factor = qnorm(halton_mat[,HHsize * 6 + 1]) ; 
 	halton_mat_list$omega = halton_mat[,HHsize * 6 + 2] ; 
@@ -1689,59 +1696,54 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		wtp = NA; 
 		wtp_uni=NA;
 		if (compute_WTP) {
-			f_wtp = function(list_1, list_2, wtp, income_effect) {
-				un_censored_R_1 = list_1$un_censored_R; 
-				kappa_draw_1 = list_1$kappa_draw; 
-				un_censored_R_2 = list_2$un_censored_R - wtp; 
-				kappa_draw_2 = list_2$kappa_draw;
-				U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
-				U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
-				# plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
-				return(cara(U1) - cara(U2))
-			}
-
-			if (optimal_U_index > 1) {
-				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[optimal_U_index]] + (income_vec[1] - income_vec[optimal_U_index]), kappa_draw = kappa_draw[[optimal_U_index]]),x, income_effect)
-				wtp = uniroot_usr(temp_f, c(0, mean(un_censored_R[[optimal_U_index]] - un_censored_R[[1]]) + 0.1))$root  
-			} else {
-				wtp = 0
-			}
-
-			wtp_uni = rep(0, HHsize)
-
-			for (i in elig_member_index) {
-				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
-
-				if (temp_f(0) > 0) {
-					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
-				}
-				wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
-				wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
-				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
-				if (is.na(wtp_uni[i])) {
-					wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
-				}     
-			}
-
-			if (data_hh_i$HHsize_s[1] >= 2) {
-				temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
-				if (abs(temp_f(0)) < 1e-5) {
-					wtp_2 = 0
-				} else {
-					upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
-					if (!(is.na(upper_bound))) {
-						wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
-						if (is.na(wtp_2)) {
-							temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect = FALSE)
-							wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
-						}
-					} else {
-						wtp_2 = NA 	
-					}
-					
-				}		
-			} else {
+			if (max(theta_draw) == 0) {
+				wtp = 0; 
+				wtp_uni = rep(0, HHsize); 
 				wtp_2 = 0; 
+			} else {
+				f_wtp = function(list_1, list_2, wtp, income_effect) {
+					un_censored_R_1 = list_1$un_censored_R; 
+					kappa_draw_1 = list_1$kappa_draw; 
+					un_censored_R_2 = list_2$un_censored_R - wtp; 
+					kappa_draw_2 = list_2$kappa_draw;
+					U1 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_1, kappa_draw = list_1$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
+					U2 = U(list(theta_draw = theta_draw, R_draw = un_censored_R_2, kappa_draw = list_2$kappa_draw, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect)
+					# plot_diagnosis <<- ggplot(data.frame(x = c(un_censored_R_1, un_censored_R_2), y = c(U1, U2), color = rep(c('f1','f2'), each = length(un_censored_R_1))),aes(x=x,y=y, color=color)) + geom_line()
+					return(cara(U1) - cara(U2))
+				}
+
+				if (optimal_U_index > 1) {
+					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[optimal_U_index]] + (income_vec[1] - income_vec[optimal_U_index]), kappa_draw = kappa_draw[[optimal_U_index]]),x, income_effect)
+					wtp = uniroot_usr(temp_f, c(0, mean(un_censored_R[[optimal_U_index]] - un_censored_R[[1]]) + 0.1))$root  
+				} else {
+					wtp = 0
+				}
+
+				wtp_uni = rep(0, HHsize)
+
+				for (i in elig_member_index) {
+					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
+
+					if (temp_f(0) > 0) {
+						temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+					}
+					wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
+					wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
+					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+					if (is.na(wtp_uni[i])) {
+						wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
+					}     
+				}
+
+				if (data_hh_i$HHsize_s[1] >= 2) {
+					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
+
+					upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
+
+					wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
+				} else {
+					wtp_2 = 0; 
+				}
 			}
 	 	}
 		m_all = m_fun(list(theta_draw = theta_draw, kappa_draw = kappa_draw[[optimal_U_index]], R_draw = R_draw[[optimal_U_index]], HHsize = HHsize, omega = omega, delta = delta, gamma = gamma), income_effect = income_effect)

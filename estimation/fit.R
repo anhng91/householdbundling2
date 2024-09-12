@@ -119,20 +119,20 @@ if (!(dir.exists('../../Obj_for_manuscript/'))) {
 				x_W = var_ind(data_id) %*% x$beta_theta_ind; 
 				if (nrow(data_id) > 1) {
 					cov_matrix = x_W %*% t(x_W) + diag(rep(exp(x$sigma_thetabar)^2, nrow(data_id)))
-					cor_matrix = cov2cor(cov_matrix)
 				} else {
 					return(NA)
 				}
+
 				# diag(cor_matrix) = NA; 
-				cor_matrix_vec = c(cor_matrix)
-				cor_relationship = matrix(NA, nrow=5, ncol=5)
+				cov_matrix_vec = c(cov_matrix)
+				cov_relationship = matrix(NA, nrow=5, ncol=5)
 				for (i in 1:5) {
 					for (j in 1:i) {
-						cor_relationship[i,j] = mean(c(cor_matrix[which(data_id$relationship == i), which(data_id$relationship == j)]), na.rm=TRUE)
+						cov_relationship[i,j] = mean(c(cov_matrix[which(data_id$relationship == i), which(data_id$relationship == j)]), na.rm=TRUE)
 					}
 				}
-				cor_relationship[which(is.nan(cor_relationship))] = NA; 
-				return(c(cor_relationship)); 
+				cov_relationship[which(is.nan(cov_relationship))] = NA; 
+				return(c(cov_relationship)); 
 			}))
 		return(matrix(apply(output, 2, function(y) mean(y, na.rm=TRUE)), nrow=5))
 	})
@@ -145,6 +145,7 @@ if (!(dir.exists('../../Obj_for_manuscript/'))) {
 fit_values_all = NULL; 
 no_heterogeneity_values_all = NULL; 
 n_draw_halton = 10;
+iter=1
 
 for (job_index in job_index_list[job_index_iter]) {
 	print(paste0('computing at index = ', job_index))
@@ -154,11 +155,8 @@ for (job_index in job_index_list[job_index_iter]) {
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		transform_param_final = transform_param(param_final$other)
-		if (Sys.info()[['sysname']] == 'Windows') {
-		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw', 'n_draw_halton'))
-			no_heterogeneity_values = parLapply(cl, c(Vol_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE)), error=function(x) x)
+		fid = function(id) {
+				output = counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE))
 				output = as.data.frame(output)
 				output$Y = data_hh_list[[id]]$Income; 
 				output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -167,24 +165,12 @@ for (job_index in job_index_list[job_index_iter]) {
 				output$relationship = data_hh_list[[id]]$relationship
 				output$iter = iter;
 				return(output)
-				}))
-			return(output)
-			})
+				}
+		if (Sys.info()[['sysname']] == 'Windows') {
+		  clusterExport(cl, c('transform_param_final', 'param_final','counterfactual_household_draw_theta_kappa_Rdraw', 'n_draw_halton'))
+			no_heterogeneity_values = parLapply(cl, c(Vol_HH_list_index), fid)
 		} else {
-			no_heterogeneity_values = mclapply(c(Vol_HH_list_index), function(id) {
-			output = do.call('rbind', lapply(iter_list, function(iter) {
-				output = tryCatch(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = function(x) x, within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=FALSE), always_covered = TRUE), error=function(x) x)
-				output = as.data.frame(output)
-				output$Y = data_hh_list[[id]]$Income; 
-				output$m_observed = data_hh_list[[id]]$M_expense; 
-				output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
-				output$id = id; 
-				output$relationship = data_hh_list[[id]]$relationship
-				output$iter = iter; 
-				return(output)
-			}))
-			return(output)
-			}, mc.cores = numcores)
+			no_heterogeneity_values = mclapply(c(Vol_HH_list_index), fid, mc.cores = numcores)
 		}
 		
 		no_heterogeneity_values = do.call('rbind', no_heterogeneity_values)
