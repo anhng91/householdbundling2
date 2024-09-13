@@ -30,7 +30,7 @@ library(randtoolbox)
 library(Hmisc)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 Vol_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {
@@ -71,7 +71,7 @@ Com_HH_list_index = Com_HH_list_index[!(is.na(Com_HH_list_index))]
 
 
 list_hh_2012 = unlist(lapply(1:length(data_hh_list), function(hh_index) ifelse(data_hh_list[[hh_index]]$Year[1] == 2012 & data_hh_list[[hh_index]]$HHsize_s[1] == 2, hh_index, NA)))
-list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))] %>% sample(1000)
+list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))] 
 
 list_p1 = seq(0, 0.06, by = 0.005) 
 list_p2 = seq(0, 1, by = 0.05)
@@ -100,11 +100,16 @@ pb_output = list()
 counterfactual_values_bd = list();
 counterfactual_values_pb = list();
 
+
 for (job_index in job_index_list[job_index_iter]) {
-	if (file.exists(paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index,'.rds'))) {
+	print(paste0('at job_index = ', job_index))
+	if (file.exists(paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))) {
 		next;
 	}
 	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
+		if (job_index == min(job_index_list[job_index_iter], na.rm=TRUE)) {
+			grid_search = TRUE
+		}
 		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
 		transform_param_final = transform_param(param_final$other)
 
@@ -224,7 +229,7 @@ for (job_index in job_index_list[job_index_iter]) {
 				prem[[2]][1] = 0 ;
 				prem[[2]][2] = exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12; 
 			}
-			
+			print(prem[[2]])
 			if (return_output) {
 				output = f_prem(prem, constraint_function, iter_list, job_index, return_long = TRUE, penalty = penalty); 
 			} else {
@@ -233,7 +238,8 @@ for (job_index in job_index_list[job_index_iter]) {
 					print('at'); print(prem[[2]])
 					print(output)
 				}
-				output_summary = - output$surplus + 100 * (output$budget < benchmark$budget);
+				output_summary = - (output$surplus + output$budget) + 100 * (output$budget < benchmark$budget);
+				print('output_summary = '); print(output_summary)
 				return(output_summary)
 			}
 		}
@@ -241,29 +247,40 @@ for (job_index in job_index_list[job_index_iter]) {
 		optimal_bd = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, function(x) x, type='bd') , control = list(reltol = 1e-2))
 		output_optimal_bd = compute_best_ps(optimal_bd$par, benchmark_2012, function(x) x, type='bd', return_output=TRUE)
 
-		constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
-		optimal_pb = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_function, type='pb') , c(-5,5), tol = 1e-3)
+		constraint_pb = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
+		optimal_pb = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_pb, type='pb') , c(-5,5), tol = 1e-3)
 
 		output_optimal_pb = compute_best_ps(optimal_pb$minimum, benchmark_2012, constraint_function, type='pb', return_output=TRUE)
 
-		constraint_function = function(x) x;
-		optimal_ip = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_function, type='ip'), c(0, 4), tol=1e-3)
-		output_optimal_ip = compute_best_ps(optimal_ip$minimum, benchmark_2012, constraint_function, type='ip', return_output=TRUE)
+		constraint_bd = function(x) x;
+		optimal_ip = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip'), c(0, 4), tol=1e-3)
+		output_optimal_ip = compute_best_ps(optimal_ip$minimum, benchmark_2012, constraint_bd, type='ip', return_output=TRUE)
 
-		constraint_function = function(x) {x_new = x; x_new[-length(x)] = -Inf; return(x_new)}
-		optimal_mandate = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_function, type='ip'), c(-4, 4), tol=1e-3)
-		output_optimal_mandate = compute_best_ps(optimal_mandate$minimum, benchmark_2012, constraint_function, type='ip', return_output=TRUE)
+		constraint_mandate = function(x) {x_new = x; x_new[-length(x)] = -Inf; return(x_new)}
+		optimal_mandate = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_mandate, type='ip'), c(-4, 4), tol=1e-3)
+		output_optimal_mandate = compute_best_ps(optimal_mandate$minimum, benchmark_2012, constraint_mandate, type='ip', return_output=TRUE)
 
-		constraint_function = function(x) x;
-		optimal_penalty = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_function, type='ip',penalty = 1), control=list(reltol = 1e-2))
-		output_optimal_penalty = compute_best_ps(optimal_penalty$par, benchmark_2012, constraint_function, type='ip', return_output=TRUE, penalty = 1)
+		optimal_penalty = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip',penalty = 1), control=list(reltol = 1e-2))
+		output_optimal_penalty = compute_best_ps(optimal_penalty$par, benchmark_2012, constraint_bd, type='ip', return_output=TRUE, penalty = 1)
 
-		constraint_function = function(x) x;
-		optimal_risk_rating = optim(c(log(1/(1 - 0.75) - 1), 1), function(prem_normalized)  compute_best_ps(prem_normalized, benchmark_2012, constraint_function, type='ip',penalty = 1), control=list(reltol = 1e-2))
 
+		optimal_risk_rating = optim(c(log(1/(1 - 0.75) - 1), 1), function(prem_normalized)  compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip',penalty = 1), control=list(reltol = 1e-2))
+
+
+
+		if (grid_search) {
+			grid_output_bd = lapply(bd_prem, function(prem) f_prem(prem, constraint_function = constraint_bd, iter_list = 1, job_index, return_long = FALSE, penalty = 0))
+			grid_output_pb = lapply(pb_prem, function(prem) f_prem(prem, constraint_function = constraint_pb, iter_list = 1, job_index, return_long = FALSE, penalty = 0))
+		} else {
+			grid_output_bd = list()
+			grid_output_pb = list()
+		}
+
+		
 		# compute across ip prices 
-		ip_price = seq(0,1,0.005) * 0.06 
+		ip_price = seq(0.005,1,0.005) * 0.06 
 		optimal_bd_all = list();
+		optimal_pb_all = list()
 		benchmark_ip_all = list();
 		index = 0
 		for (p1 in ip_price) {
@@ -272,35 +289,27 @@ for (job_index in job_index_list[job_index_iter]) {
 			prem[[2]] = c(p1, p1 * 2)
 			benchmark_ip_all[[index]] = f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)
 			optimal_bd_all[[index]] = optim(c(log(1/(1 - p1/0.06) - 1), 4.5), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_ip_all[[index]], function(x) x, type='bd') , control = list(reltol = 1e-2))
-			optimal_pb_all[[index]] = optim(c(log(1/(1 - p1/0.06) - 1), 4.5), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_ip_all[[index]], function(x) x, type='pb') , control = list(reltol = 1e-2))
+			optimal_pb_all[[index]] = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_ip_all[[index]], constraint_pb, type='pb') , c(-5,5), tol = 1e-3)
 		}
 
-		save(c('optimal_bd', 'output_optimal_bd', 'optimal_pb', 'output_optimal_pb', 'optimal_ip', 'output_optimal_ip', 'optimal_bd_all', 'optimal_pb_all', 'output_optimal_mandate', 'output_optimal_penalty', 'optimal_penalty', 'optimal_mandate'), file = paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))
-
-		stop()
-
-		next 
-
-		constraint_function = function(x) x;
-		bd_output[[job_index]] = do.call('rbind', lapply(bd_prem, function(prem) f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)));
-
-		constraint_function = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
-		pb_output[[job_index]] = do.call('rbind', lapply(bd_prem, function(prem) f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)));
-
-		bd_output[[job_index]] = as.data.frame(bd_output[[job_index]])
-		pb_output[[job_index]] = as.data.frame(pb_output[[job_index]])
-
-		names(bd_output[[job_index]]) = c('surplus', 'budget', 'cost', 'demand', 'p1', 'p2')
-		names(pb_output[[job_index]]) = c('surplus', 'budget', 'cost', 'demand', 'p1', 'p2')
-
-		bd_output[[job_index]] = bd_output[[job_index]] %>% mutate(p_ratio = p2/p1); 
-		bd_output[[job_index]]$p_ratio[is.nan(bd_output[[job_index]]$p_ratio)] = 1; 
-
-		saveRDS(bd_output[[job_index]], file = paste0('../../Obj_for_manuscript/bd_output', file_name_label,'_',job_index,'.rds'))
-		saveRDS(pb_output[[job_index]], file = paste0('../../Obj_for_manuscript/pb_output', file_name_label,'_',job_index,'.rds'))
+		save(c('optimal_bd', 'output_optimal_bd', 'optimal_pb', 'output_optimal_pb', 'optimal_ip', 'output_optimal_ip', 'optimal_bd_all', 'optimal_pb_all', 'output_optimal_mandate', 'output_optimal_penalty', 'optimal_penalty', 'optimal_mandate', 'grid_output_pb', 'grid_output_bd', 'bd_prem', 'pb_prem', 'benchmark_2012', 'benchmark_ip_all', 'optimal_bd_all', 'optimal_pb_all'), file = paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))
 	}
 }
 
+
+bd_output = list()
+for (name in names(grid_output_bd[[1]])) {
+	bd_output[[name]] = unlist(lapply(grid_output_bd, function(x) x[[name]]))
+}
+bd_output = as.data.frame(bd_output)
+bd_output$p_ratio = bd_output$p2/bd_output$p1
+
+pb_output = list()
+for (name in names(grid_output_pb[[1]])) {
+	pb_output[[name]] = unlist(lapply(grid_output_pb, function(x) x[[name]]))
+}
+pb_output = as.data.frame(pb_output)
+pb_output$p_ratio = pb_output$p2/pb_output$p1
 
 
 

@@ -19,7 +19,7 @@ library(randtoolbox)
 library(Hmisc)
 
 # setwd('./familyenrollment')
-devtools::install(upgrade='never')
+# devtools::install(upgrade='never')
 library(familyenrollment)
 
 Vol_HH_list_index = lapply(1:length(data_hh_list), function(hh_index) {

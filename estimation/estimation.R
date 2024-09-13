@@ -87,7 +87,7 @@ sample_identify_pref_f = lapply(Com_HH_list_index, function(x) ifelse(x %in% c(s
 sample_identify_pref_f = sample_identify_pref_f[!(is.na(sample_identify_pref_f))]
 
 message('Change pref sample')
-sample_identify_pref_f = Com_HH_list_index
+sample_identify_pref_f = Com_HH_list_index[lapply(data_hh_list[Com_HH_list_index], function(mini_data) max(mini_data$M_expense) > 0) %>% unlist()]
 
 out_sample_index_f = lapply(1:length(data_hh_list), function(hh_index) {
   data = data_hh_list[[hh_index]]; 
@@ -117,6 +117,7 @@ for (job_index_iter in c(1:100)) {
     sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/20), replace=TRUE)
     out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/20), replace=TRUE)
     sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
+    sample_com = sample(Com_HH_list_index, length(Com_HH_list_index)/20, replace=TRUE)
 
     n_draw_halton = 5;
 
@@ -128,11 +129,12 @@ for (job_index_iter in c(1:100)) {
     sample_identify_pref = sample(sample_identify_pref_f, round(length(sample_identify_pref_f)/5), replace=TRUE)
     out_sample_index = sample(out_sample_index_f, round(length(out_sample_index_f)/5), replace=TRUE)
     sample_identify_theta = sample(sample_identify_theta_f, length(sample_identify_theta_f), replace=TRUE)
-    n_draw_halton = 10;
+    sample_com = sample(Com_HH_list_index, length(Com_HH_list_index)/5, replace=TRUE)
+    n_draw_halton = 5;
 
-    n_halton_at_r = 10;
+    n_halton_at_r = 5;
 
-    n_draw_gauss = 10;
+    n_draw_gauss = 5;
   }
 
 
@@ -191,8 +193,6 @@ for (job_index_iter in c(1:100)) {
         return(cbind(x$data$M_expense, x$data$M_expense^2))
       }))
 
-  mat_M2 = do.call('c', lapply(data_hh_list_pref, function(mini_data) c(mini_data$data$M_expense %*% t(mini_data$data$M_expense))))
-
   mat_Year = do.call('rbind', lapply(data_hh_list_pref, function(x) {
           return(cbind(x$data$Year == 2004, x$data$Year == 2006, x$data$Year == 2010, x$data$Year == 2012))
         }))
@@ -230,7 +230,7 @@ for (job_index_iter in c(1:100)) {
   n_involuntary = do.call('c', lapply(sample_r_theta, function(output_hh_index) data_hh_list[[output_hh_index]]$N_com[1] + data_hh_list[[output_hh_index]]$N_bef[1] + data_hh_list[[output_hh_index]]$N_std_w_ins[1]))
 
   initial_param_trial = init_param
-  # initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
+  initial_param_trial[x_transform[[2]]$beta_theta_ind[1]] = log(initial_param_trial[x_transform[[2]]$beta_theta_ind[1]])
   # initial_param_trial = rep(0, length(init_param))
   # initial_param_trial[x_transform[[2]]$beta_theta[1]] = 0;
   # initial_param_trial[x_transform[[2]]$sigma_theta] = log(0.03);
@@ -263,7 +263,7 @@ for (job_index_iter in c(1:100)) {
   
   dir.create('../../householdbundling_estimate') 
 
-  aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE) {
+  aggregate_moment_pref = function(x_transform, silent=TRUE, recompute_pref=FALSE, reltol = 1e-4) {
     param_trial_here = as.vector(unlist(x_transform[[1]]))
     print(param_trial_here)
     if (Sys.info()[['sysname']] == 'Windows') {
@@ -290,6 +290,9 @@ for (job_index_iter in c(1:100)) {
     # mat_YK = rbind(1, mat_YK)
     # mat_YK = apply(mat_YK, 2, function(x) {x[which(is.nan(x))] = 0; return(x)})
     # mat_YK = mat_YK[c(1,2,4),];
+    income_quantile = as.numeric(Hmisc::cut2(mat_YK[3,], g=5))
+    mat_YK = rbind(mat_YK, income_quantile == 1, income_quantile == 2, income_quantile == 3, income_quantile == 4, income_quantile == 5)
+    mat_YK = mat_YK[-3,]
 
     mini_f = function(x_transform, return_long = FALSE) {
       if (Sys.info()[['sysname']] == 'Windows') {
@@ -369,16 +372,16 @@ for (job_index_iter in c(1:100)) {
       mini_param = splitfngr::optim_share(initial_param_trial[x_transform[[2]][pref_list] %>% unlist()], function(x) {
         x_new = param_trial_here; 
         x_new[x_transform[[2]][pref_list] %>% unlist()] = x; 
-        # if (max(abs(x)) > 10) {
-        #   return(list(NA, rep(NA, length(x))))
-        # }
+        if (max(abs(x)) > 3) {
+          return(list(NA, rep(NA, length(x))))
+        }
         output = mini_f(transform_param(x_new, return_index = TRUE)); 
         print(paste0('output of aggregate_moment_pref  = ', output[[1]])); 
         print('x = '); print(x)
         deriv = output[[2]][x_transform[[2]][pref_list] %>% unlist()];
         print('derivative = '); print(deriv);
         # deriv[(length(x)-2):length(x)] = 0
-        return(list(output[[1]], deriv))}, method='BFGS', control=list(reltol=1e-4))
+        return(list(output[[1]], deriv))}, method='BFGS', control=list(reltol=reltol))
       return(mini_param)
     } else {
         output_short = list()
@@ -425,9 +428,9 @@ for (job_index_iter in c(1:100)) {
           }
         if (Sys.info()[['sysname']] == 'Windows') {
           clusterExport(cl, c('x_transform', 'n_draw_halton','fid'),envir=environment())
-          deriv_list = parLapply(cl, sample_identify_pref,function(index) fid(index, x_transform))
+          deriv_list = parLapply(cl, sample_com,function(index) fid(index, x_transform))
         } else {
-          deriv_list = mclapply(sample_identify_pref,function(index) fid(index, x_transform), mc.cores = numcores)
+          deriv_list = mclapply(sample_com,function(index) fid(index, x_transform), mc.cores = numcores)
         }
 
         output_short[[2]] = colSums(do.call('rbind', lapply(deriv_list, function(x) x[[1]])))
@@ -475,7 +478,7 @@ for (job_index_iter in c(1:100)) {
   X_ind_sample_r_theta = as.matrix(X_ind_sample_r_theta %>% select(Y21, Y22, Y23, Y24, Y25))
   
   normalize_constant = 0;
-  optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_theta_raw=FALSE, recompute_pref = TRUE, include_pure_bundling = FALSE) {
+  optim_f =  function(x_pref_theta, include_r=TRUE, include_pref=TRUE, include_theta_raw=FALSE, recompute_pref = TRUE, include_pure_bundling = FALSE, reltol = 1e-4) {
     print('START OF A NEW ITERATION'); 
 
       param_trial_here = initial_param_trial; 
@@ -494,7 +497,7 @@ for (job_index_iter in c(1:100)) {
       
       if (include_pref) {
         if (recompute_pref) {
-          optim_pref = aggregate_moment_pref(transform_param(param_trial_here, return_index = TRUE), recompute_pref=TRUE); 
+          optim_pref = aggregate_moment_pref(transform_param(param_trial_here, return_index = TRUE), recompute_pref=TRUE, reltol = reltol); 
           param_trial_here[index_pref_only] = optim_pref$par; 
           x_transform = transform_param(param_trial_here, return_index = TRUE);
         } else {
@@ -808,7 +811,7 @@ for (job_index_iter in c(1:100)) {
     }
   }, control=list(maxit=1e3,reltol=1e-3), method='BFGS')
 
-  param_trial = optim_f(optim_pref_theta$par)[[3]]; 
+  param_trial = optim_f(optim_pref_theta$par, reltol = 1e-8)[[3]]; 
 
 
 
@@ -824,7 +827,7 @@ for (job_index_iter in c(1:100)) {
   param = param_final 
   transform_param_final = transform_param(param_final$other)
 
-  fit_sample = c(Vol_HH_list_index, Com_HH_list_index, out_sample_index)
+  fit_sample = c(Vol_HH_list_index, Com_HH_list_index, out_sample_index_f)
 
   for (seed_number in c(1:1)) {
     fit_f = function(id) {
@@ -872,7 +875,7 @@ for (job_index_iter in c(1:100)) {
 
   rm(save_output)
   rm(fit_values)
-  
+
   if (Sys.info()[['sysname']] == 'Windows') {
     stopCluster(cl)
   }

@@ -475,7 +475,7 @@ U = function(input, income_effect=TRUE, diagnosis = FALSE) {
 	} else {
 		input$R_draw = input$R_draw 
 		R_transformed = ((input$R_draw * (input$R_draw > 0) + 1)^(1 - input$omega) - 1)/(1 - input$omega)
-		output = lapply(1:length(R_transformed), function(index) ifelse(is.nan(R_transformed[index]), log(input$R_draw[index] * (input$R_draw[index] > 0) + 1), R_transformed[index])) %>% unlist() + (input$R_draw + 1) * (input$R_draw <= 0) - rowSums(matrix(t(apply(input$theta_draw, 1, function(x) x * input$delta)), ncol=input$HHsize) * matrix(t(apply(input$kappa_draw, 1, function(x) ((x + 1)^(1 - input$gamma) - 1)/(1 - input$gamma))), ncol = input$HHsize));
+		output = lapply(1:length(R_transformed), function(index) ifelse(is.nan(R_transformed[index]), log(input$R_draw[index] * (input$R_draw[index] > 0) + 1), R_transformed[index])) %>% unlist() + (input$R_draw) * (input$R_draw <= 0) - rowSums(matrix(t(apply(input$theta_draw, 1, function(x) x * input$delta)), ncol=input$HHsize) * matrix(t(apply(input$kappa_draw, 1, function(x) ((x + 1)^(1 - input$gamma) - 1)/(1 - input$gamma))), ncol = input$HHsize));
 		output_orig = output;
 		min_output = min(output, na.rm=TRUE); 
 		if (diagnosis) {
@@ -1685,7 +1685,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		}
 
 		optimal_U_index = sort(constraint_function(unlist(U_list)), index.return=TRUE, decreasing=TRUE)$ix[1]
-		optimal_U_index = max(which(unlist(U_list) == U_list[optimal_U_index]))
+		optimal_U_index = max(which(constraint_function(unlist(U_list)) == constraint_function(unlist(U_list))[optimal_U_index]))
 
 		vol_sts_counterfactual = rep(0, HHsize);
 
