@@ -1436,6 +1436,7 @@ uniroot_usr = function(f, interval_init) {
 #' @param penalty a numerical value. If positive, household pays a penalty for every uninsured member. 
 #' @param risk_discrimination a function of beta_theta; represents risk-based pricing
 #' @param afford whether to impose a constraint that a household with negative income cannot purchase insurance. default to TRUE 
+#' @param compute_wtp2 whether the wtp for a bundle of 2 members should be computed. default to TRUE
 #'
 #' @return a list that includes the draws of household-related objects,taking into account the sick parameters and the distribution of coverage, the optimal insurance choice, the amount of oop, and the cost to the insurance company
 #' 
@@ -1446,7 +1447,7 @@ uniroot_usr = function(f, interval_init) {
 #' counterfactual_household_draw_theta_kappa_Rdraw(3, sample_data_and_parameter$param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters = sick_parameters_sample, xi_parameters = xi_parameters_sample, u_lowerbar = -10, policy_mat_hh=policy_mat[[3]], seed_number=1, constraint_function=constant_f, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE))
 #' 
 #' 
-counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE, penalty = 0, risk_discrimination_dummy = FALSE, risk_discrimination = function(x) 0, afford=TRUE) {
+counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_draw_halton = 1000, n_draw_gauss = 10, sick_parameters, xi_parameters, u_lowerbar = -10, policy_mat_hh, seed_number=1, constraint_function, within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), income_vec = NA, contraction_variance = 1, compute_WTP=TRUE, derivative=FALSE, numerical_derivative=NA, option_derivative = 'beta_theta_ind', always_covered=FALSE, penalty = 0, risk_discrimination_dummy = FALSE, risk_discrimination = function(x) 0, afford=TRUE, compute_wtp2 = TRUE, compute_counterfactual_cost = FALSE) {
 	set.seed(hh_index + seed_number);
 	data_hh_i = data_hh_list[[hh_index]]; 
 	HHsize = nrow(data_hh_i);
@@ -1504,7 +1505,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 
 	for (i in 1:HHsize) { 
 		random_draw_here = rnorm(1)
-		theta_bar[i] = random_draw_here * s_thetabar * contraction_variance + random_hh_factor * contraction_variance * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta;
+		theta_bar[i] = random_draw_here * s_thetabar + random_hh_factor * contraction_variance * (X_ind[i,] %*% param$beta_theta_ind) + t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta;
 		beta_theta[i] = t(c(X_ind[i,], data_hh_i$Year[i] == 2004, data_hh_i$Year[i] == 2006, data_hh_i$Year[i] == 2010, data_hh_i$Year[i] == 2012)) %*% param$beta_theta 
 		if (derivative & option_derivative == 'beta_theta') {
 			theta_bar[i] = theta_bar[i] + numerical_derivative[i]
@@ -1698,6 +1699,7 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		if (compute_WTP) {
 			if (max(theta_draw) == 0) {
 				wtp = 0; 
+				cost_to_insurance = rep(0, HHsize)
 				wtp_uni = rep(0, HHsize); 
 				wtp_2 = 0; 
 			} else {
@@ -1720,36 +1722,45 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 				}
 
 				wtp_uni = rep(0, HHsize)
+				wtp_2 = 0;
+				cost_to_insurance = rep(0, HHsize); 
+				if (compute_wtp2) {
+					for (i in elig_member_index) {
+						temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
 
-				for (i in elig_member_index) {
-					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x, income_effect)
-
-					if (temp_f(0) > 0) {
+						if (temp_f(0) > 0) {
+							temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+						}
+						wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
+						wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
 						temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
+						if (is.na(wtp_uni[i])) {
+							wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
+						}    
+						if (compute_counterfactual_cost) {
+							cost_to_insurance[i]  = colMeans(m_fun(list(theta_draw = theta_draw, kappa_draw = kappa_draw_uni[[i]], R_draw = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), omega = omega, gamma = gamma, delta = delta, HHsize = HHsize), income_effect = income_effect)$insurer_cost)[i];
+						}
 					}
-					wtp_uni[i] =  uniroot_usr(temp_f, c(0,0.05))$root ; 
-					wtp_uni[i] = ifelse(abs(temp_f(wtp_uni[i])) < 1e-4, wtp_uni[i], NA)
-					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R_uni[[i]] + (income_vec[1] - income_vec[2]), kappa_draw = kappa_draw_uni[[i]]),x,income_effect = FALSE)
-					if (is.na(wtp_uni[i])) {
-						wtp_uni[i] = uniroot_usr(temp_f, c(0,0.1))$root
-					}     
-				}
 
-				if (data_hh_i$HHsize_s[1] >= 2) {
-					temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
+					if (data_hh_i$HHsize_s[1] >= 2) {
+						temp_f = function(x) f_wtp(list(un_censored_R = un_censored_R[[1]], kappa_draw = kappa_draw[[1]]), list(un_censored_R = un_censored_R[[3]] + (income_vec[1] - income_vec[3]), kappa_draw = kappa_draw[[3]]),x, income_effect)
 
-					upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
+						upper_bound = sum(sort(wtp_uni, decreasing=TRUE)[1:2])
 
-					wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
-				} else {
-					wtp_2 = 0; 
+						wtp_2 = uniroot_usr(temp_f, c(0,upper_bound))$root 
+					} else {
+						wtp_2 = 0; 
+					}
 				}
 			}
 	 	}
 		m_all = m_fun(list(theta_draw = theta_draw, kappa_draw = kappa_draw[[optimal_U_index]], R_draw = R_draw[[optimal_U_index]], HHsize = HHsize, omega = omega, delta = delta, gamma = gamma), income_effect = income_effect)
 		m = colMeans(m_all$oop)
 		optional_care = colMeans(m_all$optional)
-		cost_to_insurance = colMeans(m_all$insurer_cost)
+		if (!compute_counterfactual_cost) {
+			cost_to_insurance = colMeans(m_all$insurer_cost)
+		}
+		
 	}
 
 	output = list()

@@ -1,23 +1,3 @@
-args = commandArgs(trailingOnly=TRUE)
-if (length(args)<3) { 
-  numcores = 4;  
-  contraction_variance = 1;
-  within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE);
-  file_name_label = paste0('contraction_variance_', contraction_variance, '_full_heterogeneity')
-  job_index_iter = 1:100; 
-} else {
-  numcores = as.numeric(args[1]); 
-  contraction_variance = as.numeric(args[2]);
-  if (as.numeric(args[3]) == 1) {
-  	within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE);
-  	file_name_label = paste0('contraction_variance_', contraction_variance, '_full_heterogeneity')
-  } else {
-  	within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=TRUE);
-  	file_name_label = paste0('contraction_variance_', contraction_variance, 'no_pref_heterogeneity')
-  }
-  job_index_iter = as.numeric(args[3])
-}
-
 library(knitr)
 library(tidyverse)
 library(lfe)
@@ -28,6 +8,14 @@ library(parallel)
 library(randomForest)
 library(randtoolbox)
 library(Hmisc)
+
+if (Sys.info()[['sysname']] == 'Windows') {
+    numcores = 20;
+} else if (Sys.info()[['sysname']] == 'Linux') {
+  numcores = 12;
+} else {
+  numcores = 6;
+}
 
 # setwd('./familyenrollment')
 # devtools::install(upgrade='never')
@@ -76,7 +64,7 @@ list_hh_2012 = list_hh_2012[which(!(is.na(list_hh_2012)))]
 list_p1 = seq(0, 0.06, by = 0.005) 
 list_p2 = seq(0, 1, by = 0.05)
 
-n_draw_halton = 10;
+n_draw_halton = 100;
 
 if (Sys.info()[['sysname']] == 'Windows') {
   numcores = numcores; 
@@ -87,6 +75,7 @@ if (Sys.info()[['sysname']] == 'Windows') {
 }
 
 job_index_list = as.numeric(gsub("\\D", "", list.files('../../householdbundling_estimate/'))) %>% unique()
+job_index_list = job_index_list[which(!(is.na(job_index_list)))]
 
 iter_list = c(1:1);
 
@@ -101,215 +90,308 @@ counterfactual_values_bd = list();
 counterfactual_values_pb = list();
 
 
-for (job_index in job_index_list[job_index_iter]) {
-	print(paste0('at job_index = ', job_index))
-	if (file.exists(paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))) {
-		next;
-	}
-	if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
-		if (job_index == min(job_index_list[job_index_iter], na.rm=TRUE)) {
-			grid_search = TRUE
-		}
-		param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
-		transform_param_final = transform_param(param_final$other)
+if (Sys.info()[['nodename']] == 'Anh-Macbook-3.local' | grepl("vpn", Sys.info()[['nodename']])  | grepl("macbook", tolower(Sys.info()[['nodename']])) ) {
+  mini=FALSE
+  numcores = 4; 
+} else {
+  mini=FALSE
+}
 
-		counterfactual_premium = function(premium_param, type, id) {
-			MW = (Income_net_premium[[id]][1] - Income_net_premium[[id]][2]) * 4/3 / 0.06 # 2012 premium is at 4.5\% MW for the first member
-			if (type == 'bundle discount') {
+if (mini) {
+	list_hh_2012 = sample(list_hh_2012, 100)
+}
+
+f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_iter, contraction_variance, compute_mandate = FALSE, compute_penalty = FALSE, compute_risk = FALSE, compute_frontier = FALSE, max_obj = 'ss') {
+	for (job_index in job_index_list[job_index_iter]) {
+		print(paste0('at job_index = ', job_index))
+		if (file.exists(paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))) {
+			next;
+		}
+		if (file.exists(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))) {
+			filename = paste0('../../Obj_for_manuscript/',file_name_label,'_',job_index,'.rdata')
+			if (file.exists(filename)) {
+				next;
+			}
+			if (job_index == min(job_index_list[job_index_iter], na.rm=TRUE)) {
+				grid_search = FALSE
+			} else {
+				grid_search = FALSE
+			}
+			param_final <- readRDS(paste0('../../householdbundling_estimate/estimate_',job_index,'.rds'))
+			transform_param_final = transform_param(param_final$other)
+
+			counterfactual_premium = function(premium_param, id) {
+				MW = (Income_net_premium[[id]][1] - Income_net_premium[[id]][2]) * 4/3 / 0.06 # 2012 premium is at 4.5\% MW for the first member
+
 				hhsize_s = length(Income_net_premium[[id]]) - 1; 
-				income_vec = Income_net_premium[[id]][1] - c(0, premium_param[[hhsize_s]][1:hhsize_s]) * MW;
-			} else if (type == 'pure bundling') {
-				income_vec = rep(Income_net_premium[[id]][1], hhsize_s); 
-				income_vec[hhsize_s] = Income_net_premium[[id]][1] - premium_param[[hhsize_s]] * MW; 
-			} else {
-				income_vec =  Income_net_premium[[id]][1] - premium_param[[hhsize_s]] * c(0:hhsize_s) * MW;
+				income_vec = Income_net_premium[[id]][1] - c(0, premium_param[1:hhsize_s]) * MW;
+				
+				return(income_vec)
 			}
-			return(income_vec)
-		}
 
-		if (Sys.info()[['sysname']] == 'Windows') {
-		  clusterExport(cl,c('counterfactual_premium'))
-		}
-
-		bd_prem = list()
-		pb_prem = list()
-		prem_id = 0; 
-		for (i1 in list_p1) {
-			for (i2 in list_p2) {
-				prem_id = prem_id + 1; 
-				bd_prem[[prem_id]] = list(); 
-				bd_prem[[prem_id]][[2]] = c(i1, i1 * (1 + i2))
-				pb_prem[[prem_id]] = list(); 
-				pb_prem[[prem_id]][[2]] = c(0, i1 * (1 + i2))
-				if (i1 == 0) {
-					break
-				}
-			}
-		} 
-
-		bd_output[[job_index]] = list(); 
-		bd_output[[job_index]]$budget = NULL; 
-		bd_output[[job_index]]$surplus = NULL
-
-		pb_output[[job_index]] = list(); 
-		pb_output[[job_index]]$budget = NULL; 
-		pb_output[[job_index]]$surplus = NULL
-
-		print_index = 0; 
-
-
-		counterfactual_values_bd[[job_index]] = list();
-		counterfactual_values_pb[[job_index]] = list();
-
-		f_prem = function(prem, constraint_function, iter_list, job_index, return_long = FALSE, penalty = 0) {
-			f_id = function(id) {
-				income_vec = counterfactual_premium(prem, 'bundle discount', id)
-				output = do.call('rbind', lapply(iter_list, function(iter) {
-					output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance, penalty = penalty))
-					output$iter = iter; 
-					output$Y = data_hh_list[[id]]$Income; 
-					output$m_observed = data_hh_list[[id]]$M_expense; 
-					output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
-					output$id = id
-					output$premium_optimal = income_vec[1] - income_vec[sum(output$vol_sts_counterfactual) + 1];
-					output$HHsize_s = data_hh_list[[id]]$HHsize_s; 
-					output$eligible = (data_hh_list[[id]]$Com_sts + data_hh_list[[id]]$Bef_sts + data_hh_list[[id]]$Std_w_ins) == 0  
-					output$job_index = job_index
-					return(as.data.frame(output))
-					}))
-				return(output)}
 			if (Sys.info()[['sysname']] == 'Windows') {
-				clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
-				counterfactual_values_bd = parLapply(cl, c(list_hh_2012), f_id)
-			} else {
-				counterfactual_values_bd = mclapply(c(list_hh_2012), f_id, mc.cores=numcores) 
+			  clusterExport(cl,c('counterfactual_premium'))
 			}
-			counterfactual_values_bd = do.call('rbind', counterfactual_values_bd) %>% as.data.frame()
-			bd_output = list()
-			bd_output$surplus = counterfactual_values_bd  %>% filter(eligible) %>% group_by(id, iter) %>% slice(1) %>% pull(wtp) %>% sum(na.rm = TRUE) - sum(counterfactual_values_bd %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) 
-			bd_output$budget = sum(counterfactual_values_bd  %>% filter(eligible) %>% group_by(id, iter) %>% slice(1) %>% pull(premium_optimal)) - (counterfactual_values_bd %>% filter(eligible) %>% pull(cost_to_insurance) %>% sum())
-			bd_output$cost = (counterfactual_values_bd %>% filter(eligible) %>% pull(cost_to_insurance) %>% sum())
-			bd_output$demand = sum(counterfactual_values_bd  %>% filter(eligible) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(N_vol))/sum(counterfactual_values_bd  %>% filter(eligible) %>% group_by(id, iter) %>% mutate(N_vol = sum(vol_sts_counterfactual)) %>% slice(1) %>% ungroup() %>% pull(HHsize_s))
-			bd_output$p1 = prem[[2]][1];
-			bd_output$p2 = prem[[2]][2];
-			if (return_long) {
-				return(counterfactual_values_bd)
-			} else {
-				return(bd_output)
-			}
-		}
 
-		constraint_function = function(x) x;
-		prem_2012 = list(); prem_2012[[2]] = c(0.045, 1.9 * 0.045);
-		benchmark_2012 = f_prem(prem_2012, constraint_function, iter_list, job_index, return_long = FALSE)
+			bd_prem = list()
+			pb_prem = list()
+			prem_id = 0; 
+			for (i1 in list_p1) {
+				for (i2 in list_p2) {
+					prem_id = prem_id + 1; 
+					bd_prem[[prem_id]] = list(); 
+					bd_prem[[prem_id]][[2]] = c(i1, i1 * (1 + i2))
+					pb_prem[[prem_id]] = list(); 
+					pb_prem[[prem_id]][[2]] = c(0, i1 * (1 + i2))
+					if (i1 == 0) {
+						break
+					}
+				}
+			} 
 
-		compute_best_ps = function(prem_normalized, benchmark = benchmark_2012, constraint_function = function(x) x, type = c('ip','pb','bd'), return_output = FALSE, penalty = 0) {
-			if (type == 'ip') {
-				if (penalty == 0) {
-					prem = list(); 
-					prem[[2]] = c(NA, NA); 
-					prem[[2]][1] = exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06;
-					prem[[2]][2] = 2 * prem[[2]][1]; 
+			bd_output[[job_index]] = list(); 
+			bd_output[[job_index]]$budget = NULL; 
+			bd_output[[job_index]]$surplus = NULL
+
+			pb_output[[job_index]] = list(); 
+			pb_output[[job_index]]$budget = NULL; 
+			pb_output[[job_index]]$surplus = NULL
+
+			print_index = 0; 
+
+
+			counterfactual_values_bd[[job_index]] = list();
+			counterfactual_values_pb[[job_index]] = list();
+
+			f_prem = function(prem, constraint_function, iter_list, job_index, return_long = FALSE, penalty = 0, compute_WTP = FALSE, wtp_mat = NA, cost_mat = NA, price_var = NA) {
+				f_id = function(id, prem, penalty = 0) {
+					income_vec = counterfactual_premium(prem, id)
+					output = do.call('rbind', lapply(iter_list, function(iter) {
+						output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance, penalty = penalty, always_covered = FALSE, compute_wtp2 = TRUE, within_hh_heterogeneity = within_hh_heterogeneity, compute_WTP = TRUE, compute_counterfactual_cost = TRUE, afford = FALSE))
+						output$iter = iter; 
+						output$Y = data_hh_list[[id]]$Income; 
+						output$m_observed = data_hh_list[[id]]$M_expense; 
+						output$fit_type = ifelse(id %in% Vol_HH_list_index, 2, ifelse(id %in% Com_HH_list_index, 1, 3))
+						output$id = id
+						output$premium_optimal = income_vec[1] - income_vec[sum(output$vol_sts_counterfactual) + 1];
+						output$HHsize_s = data_hh_list[[id]]$HHsize_s; 
+						output$eligible = (data_hh_list[[id]]$Com_sts + data_hh_list[[id]]$Bef_sts + data_hh_list[[id]]$Std_w_ins) == 0  
+						output$job_index = job_index
+						return(as.data.frame(output))
+						}))
+					return(output)}
+				if (compute_WTP) {
+					if (Sys.info()[['sysname']] == 'Windows') {
+						clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
+						counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id, prem = c(0.045, 0.045 * 1.9)))
+					} else {
+						counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id, prem = c(0.045, 0.045 * 1.9)), mc.cores=numcores) 
+					}
+					wtp_frame = lapply(counterfactual_values_bd, function(mini_data) list(wtp = c(mini_data$wtp_uni[which(mini_data$eligible)], mini_data$wtp_2[1]), cost_to_insurance = mini_data$cost_to_insurance[which(mini_data$eligible)]))
+					wtp_mat = (do.call('rbind', lapply(wtp_frame, function(mini_data) mini_data$wtp)))
+					cost_mat = (do.call('rbind', lapply(wtp_frame, function(mini_data) mini_data$cost)))
+					counterfactual_values_bd = do.call('rbind', counterfactual_values_bd) %>% as.data.frame()
+					return(list(counterfactual_values_bd = counterfactual_values_bd, wtp_mat = wtp_mat, cost_mat = cost_mat))
 				} else {
-					prem = list(); 
-					prem[[2]] = c(NA, NA); 
-					prem[[2]][1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
-					prem[[2]][2] = 2 * prem[[2]][1]; 
-					penalty = exp(prem_normalized[2])/(1 + exp(prem_normalized[2])) * 0.06;
-				}
-					
-			} else if (type == 'bd') {
-				prem = list(); 
-				prem[[2]] = c(NA, NA); 
-				prem[[2]][1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
-				prem[[2]][2] = (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2]))) * prem[[2]][1]; 
-			} else {
-				prem = list(); 
-				prem[[2]] = c(NA, NA); 
-				prem[[2]][1] = 0 ;
-				prem[[2]][2] = exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12; 
+					outcome_at_premium_f = function(prem, constraint_function, price_var = NA) {
+						output = do.call('rbind', lapply(1:nrow(wtp_mat), function(row_index) {
+							if (is.na(price_var)) {
+								prem_hh = counterfactual_premium(prem, id = list_hh_2012[row_index])
+								optim_index = which.max(constraint_function(c(0 - 2 * penalty, wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index,3])) - c(0, prem_hh[1] - prem_hh[2], prem_hh[1] - prem_hh[2], prem_hh[1] - prem_hh[3]))
+								optim_index = max(optim_index)
+								ss = c(0 - 2 * penalty, wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index, 3])[optim_index] - c(0,cost_mat[row_index,], sum(cost_mat[row_index,]))[optim_index]
+								cs = c(0 - 2 * penalty, wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index, 3])[optim_index] - c(2 * penalty, prem_hh[1] - prem_hh[2] + penalty, prem_hh[1] - prem_hh[2] + penalty, prem_hh[1] - prem_hh[3])[optim_index]
+								budget =  c(2 * penalty, prem_hh[1] - prem_hh[2] + penalty, prem_hh[1] - prem_hh[2] + penalty, prem_hh[1] - prem_hh[3])[optim_index] - c(0,cost_mat[row_index,],sum(cost_mat[row_index,]))[optim_index]
+								vol_sts = (optim_index == 1) * c(0,0) + (optim_index == 2) * c(1,0) + (optim_index == 3) * c(0,1) + (optim_index == 4) * c(1,1)
+							} else {
+								data_hh_i_eligible = data_hh_list[[list_hh_2012[row_index]]] %>% filter(Bef_sts + Com_sts + Std_w_ins == 0)
+								prem_hh = NULL; 
+								prem_hh[1] = exp(prem[2] * data_hh_i_eligible[[price_var]][1])/(1 + exp(prem[2] * data_hh_i_eligible[[price_var]][1])) * exp(prem[1])/(1 + exp(prem[1])) * 0.06;
+								prem_hh[2] = exp(prem[2] * data_hh_i_eligible[[price_var]][2])/(1 + exp(prem[2] * data_hh_i_eligible[[price_var]][2])) * exp(prem[1])/(1 + exp(prem[1])) * 0.06;
+
+								optim_index = which.max(constraint_function(c(0 - 2 * penalty,wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index,3])) - c(0, prem_hh[1], prem_hh[2], prem_hh[1] + prem_hh[2]))
+								optim_index = max(optim_index)
+								ss = c(0 - 2 * penalty, wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index, 3])[optim_index] - c(0,cost_mat[row_index,],sum(cost_mat[row_index,]))[optim_index]
+								cs = c(0 - 2 * penalty, wtp_mat[row_index,1] - penalty, wtp_mat[row_index,2] - penalty, wtp_mat[row_index, 3])[optim_index] -  c(2 * penalty, prem_hh[1] + penalty, prem_hh[2] + penalty, prem_hh[2] + prem_hh[1])[optim_index]
+								budget =  c(2 * penalty, prem_hh[1] + penalty, prem_hh[2] + penalty, prem_hh[2] + prem_hh[1])[optim_index] - c(0,cost_mat[row_index,],sum(cost_mat[row_index,]))[optim_index]
+								vol_sts = (optim_index == 1) * c(0,0) + (optim_index == 2) * c(1,0) + (optim_index == 3) * c(0,1) + (optim_index == 4) * c(1,1)
+							}
+							return(c(ss, cs, budget, vol_sts))
+						}))
+						names(output) = c('ss','cs','budget','vol_sts_1','vol_sts_2')
+						return(output)
+					}
+
+					if (return_long) {
+						if (is.na(price_var)){
+							if (Sys.info()[['sysname']] == 'Windows') {
+								clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
+								counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty))
+							} else {
+								counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty), mc.cores=numcores) 
+							}
+							counterfactual_values_bd = do.call('rbind', counterfactual_values_bd) %>% as.data.frame()
+							return(counterfactual_values_bd)
+						}
+						else {
+							return(outcome_at_premium_f(prem, constraint_function, price_var))
+						}
+					} else {
+						output = colSums(outcome_at_premium_f(prem, constraint_function, price_var));
+						names(output) = c('ss','cs', 'budget','vol_sts_1','vol_sts_2')
+						return(output)
+					}
+				}		
 			}
-			print(prem[[2]])
-			if (return_output) {
-				output = f_prem(prem, constraint_function, iter_list, job_index, return_long = TRUE, penalty = penalty); 
-			} else {
-				output = f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE, penalty = penalty); 
-				if (output$budget > benchmark$budget) {
-					print('at'); print(prem[[2]])
-					print(output)
-				}
-				output_summary = - (output$surplus + output$budget) + 100 * (output$budget < benchmark$budget);
-				print('output_summary = '); print(output_summary)
-				return(output_summary)
-			}
-		}
 
-		optimal_bd = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, function(x) x, type='bd') , control = list(reltol = 1e-2))
-		output_optimal_bd = compute_best_ps(optimal_bd$par, benchmark_2012, function(x) x, type='bd', return_output=TRUE)
-
-		constraint_pb = function(x) {x_new = x; x_new[-c(1, length(x))] = -Inf; return(x_new)}
-		optimal_pb = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_pb, type='pb') , c(-5,5), tol = 1e-3)
-
-		output_optimal_pb = compute_best_ps(optimal_pb$minimum, benchmark_2012, constraint_function, type='pb', return_output=TRUE)
-
-		constraint_bd = function(x) x;
-		optimal_ip = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip'), c(0, 4), tol=1e-3)
-		output_optimal_ip = compute_best_ps(optimal_ip$minimum, benchmark_2012, constraint_bd, type='ip', return_output=TRUE)
-
-		constraint_mandate = function(x) {x_new = x; x_new[-length(x)] = -Inf; return(x_new)}
-		optimal_mandate = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_mandate, type='ip'), c(-4, 4), tol=1e-3)
-		output_optimal_mandate = compute_best_ps(optimal_mandate$minimum, benchmark_2012, constraint_mandate, type='ip', return_output=TRUE)
-
-		optimal_penalty = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip',penalty = 1), control=list(reltol = 1e-2))
-		output_optimal_penalty = compute_best_ps(optimal_penalty$par, benchmark_2012, constraint_bd, type='ip', return_output=TRUE, penalty = 1)
-
-
-		optimal_risk_rating = optim(c(log(1/(1 - 0.75) - 1), 1), function(prem_normalized)  compute_best_ps(prem_normalized, benchmark_2012, constraint_bd, type='ip',penalty = 1), control=list(reltol = 1e-2))
-
-
-
-		if (grid_search) {
-			grid_output_bd = lapply(bd_prem, function(prem) f_prem(prem, constraint_function = constraint_bd, iter_list = 1, job_index, return_long = FALSE, penalty = 0))
-			grid_output_pb = lapply(pb_prem, function(prem) f_prem(prem, constraint_function = constraint_pb, iter_list = 1, job_index, return_long = FALSE, penalty = 0))
-		} else {
-			grid_output_bd = list()
-			grid_output_pb = list()
-		}
-
+			prem_2012 = c(0.045, 1.9 * 0.045);
+			output_base = f_prem(prem_2012, constraint_function = function(x) x, iter_list = 1, job_index, return_long = TRUE, penalty = 0, compute_WTP = TRUE, wtp_mat = NA, cost_mat = NA); 
+			print(summary(output_base$cost_mat))
+			print(summary(output_base$wtp_mat))
+			benchmark_2012 = f_prem(prem_2012, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
 		
-		# compute across ip prices 
-		ip_price = seq(0.005,1,0.005) * 0.06 
-		optimal_bd_all = list();
-		optimal_pb_all = list()
-		benchmark_ip_all = list();
-		index = 0
-		for (p1 in ip_price) {
-			index = index + 1; 
-			prem = list(); 
-			prem[[2]] = c(p1, p1 * 2)
-			benchmark_ip_all[[index]] = f_prem(prem, constraint_function, iter_list, job_index, return_long = FALSE)
-			optimal_bd_all[[index]] = optim(c(log(1/(1 - p1/0.06) - 1), 4.5), function(prem_normalized) compute_best_ps(prem_normalized, benchmark_ip_all[[index]], function(x) x, type='bd') , control = list(reltol = 1e-2))
-			optimal_pb_all[[index]] = optimize(function(prem_normalized) compute_best_ps(prem_normalized, benchmark_ip_all[[index]], constraint_pb, type='pb') , c(-5,5), tol = 1e-3)
-		}
+			optimal_bd = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+				prem = NULL
+				prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
+				prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
+				print('prem = '); print(prem)
+				output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				final_output = -output[['ss']] + 1e2 * (output[['budget']] < benchmark_2012[['budget']])
+				print(output)
+				return(final_output)
+			})
 
-		save(c('optimal_bd', 'output_optimal_bd', 'optimal_pb', 'output_optimal_pb', 'optimal_ip', 'output_optimal_ip', 'optimal_bd_all', 'optimal_pb_all', 'output_optimal_mandate', 'output_optimal_penalty', 'optimal_penalty', 'optimal_mandate', 'grid_output_pb', 'grid_output_bd', 'bd_prem', 'pb_prem', 'benchmark_2012', 'benchmark_ip_all', 'optimal_bd_all', 'optimal_pb_all'), file = paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))
+			optimal_bd_summary = f_prem(c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+
+			output_optimal_bd = f_prem(prem = c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), constraint_function = function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE)
+
+			optimal_pb = optimize(function(prem_normalized){
+				prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
+				output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				print(output)
+				print(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
+				return(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
+			}, c(0, 5), tol = 1e-4)
+
+			optimal_pb_summary = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+
+			output_optimal_pb = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+
+			optimal_ip = optimize(function(prem_normalized){
+				prem = c(exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06 * 2)
+				output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+			}, c(-5, 5), tol = 1e-3)
+
+			optimal_ip_summary = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+
+			output_optimal_ip = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+
+			if (compute_mandate) {
+				optimal_mandate = optimize(function(prem_normalized){
+					prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
+					output = f_prem(prem, function(x) c(-Inf, -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+				}, c(-5, 5), tol = 1e-3)
+
+				optimal_mandate_summary = f_prem(c(0, exp(optimal_mandate$minimum)/(1 + exp(optimal_mandate$minimum)) * 0.12), function(x) c(-Inf, -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				output_optimal_mandate = f_prem(c(0, exp(optimal_mandate$minimum)/(1 + exp(optimal_mandate$minimum)) * 0.12), function(x) c(-Inf, -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+			} else {
+				optimal_mandate = list()
+				output_optimal_mandate = list()
+				optimal_mandate_summary = list() 
+			}
+
+			if (compute_penalty) {
+				optimal_penalty = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+					prem = NULL
+					prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
+					prem[2] = prem[1] * 2;
+					output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, penalty = exp(prem_normalized[2])/(1 + exp(prem_normalized[2])) * 0.06)
+					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+				})
+
+				output_optimal_penalty = f_prem(c(exp(optimal_penalty$par[1])/(1 + exp(optimal_penalty$par[1])) * 0.06, exp(optimal_penalty$par[1])/(1 + exp(optimal_penalty$par[1])) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, penalty = exp(optimal_penalty$par[2])/(1 + exp(optimal_penalty$par[2])) * 0.06)
+
+				optimal_penalty_summary = f_prem(c(exp(optimal_penalty$par[1])/(1 + exp(optimal_penalty$par[1])) * 0.06, exp(optimal_penalty$par[1])/(1 + exp(optimal_penalty$par[1])) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, penalty = exp(optimal_penalty$par[2])/(1 + exp(optimal_penalty$par[2])) * 0.06)
+			} else {
+				optimal_penalty = list()
+				output_optimal_penalty = list()
+				optimal_penalty_summary = list()
+			}
+				
+
+			if (compute_risk) {
+				optimal_risk = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+					output = f_prem(prem_normalized, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, price_var = 'age5')
+					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+				})
+
+				optimal_risk_summary = f_prem(optimal_risk$par, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
+				output_optimal_risk = f_prem(optimal_risk$par, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE)
+			} else {
+				optimal_risk = list()
+				output_optimal_risk = list()
+				optimal_risk_summary = list()
+			}
+			
+			
+			if (compute_frontier) {
+				ip_price = seq(0.005,0.055,0.005)
+				optimal_bd_all = list();
+				optimal_pb_all = list()
+				benchmark_ip_all = list();
+				index = 0
+				for (p1 in ip_price) {
+					index = index + 1; 
+					prem = list(); 
+					prem[[2]] = c(p1, p1 * 2)
+					benchmark_ip_all[[index]] = f_prem(c(p1, p1 * 2), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = FALSE)
+					optimal_bd_all[[index]] = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+						prem = NULL
+						prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
+						prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
+						output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+						return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_ip_all[[index]][['budget']]))
+					})
+					optimal_pb_all[[index]] = optimize(function(prem_normalized){
+						prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
+						output = f_prem(prem, function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+						return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_ip_all[[index]][['budget']]))
+					}, c(-5, 5), tol = 1e-3)
+				}				
+			} else {
+				ip_price = seq(0.005,0.055,0.005)
+				optimal_bd_all = list();
+				optimal_pb_all = list()
+				benchmark_ip_all = list();
+			}
+			# compute across ip prices 
+
+			save(list=c('optimal_bd', 'output_optimal_bd', 'optimal_pb', 'output_optimal_pb', 'optimal_ip', 'output_optimal_ip', 'optimal_bd_all', 'optimal_pb_all', 'output_optimal_mandate', 'output_optimal_penalty', 'optimal_penalty', 'optimal_mandate','bd_prem', 'pb_prem', 'benchmark_2012', 'benchmark_ip_all', 'optimal_bd_all', 'optimal_pb_all','output_optimal_risk', 'optimal_risk', 'output_base','optimal_bd_summary', 'optimal_ip_summary', 'optimal_pb_summary', 'optimal_penalty_summary', 'optimal_mandate_summary', 'optimal_risk_summary'), file = filename)
+		}
 	}
 }
 
 
-bd_output = list()
-for (name in names(grid_output_bd[[1]])) {
-	bd_output[[name]] = unlist(lapply(grid_output_bd, function(x) x[[name]]))
-}
-bd_output = as.data.frame(bd_output)
-bd_output$p_ratio = bd_output$p2/bd_output$p1
+f_counterfactual(file_name_label = 'cf_ss_variance_1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, compute_mandate = TRUE, compute_penalty = TRUE, compute_risk = TRUE, compute_frontier = TRUE, max_obj = 'ss');
 
-pb_output = list()
-for (name in names(grid_output_pb[[1]])) {
-	pb_output[[name]] = unlist(lapply(grid_output_pb, function(x) x[[name]]))
-}
-pb_output = as.data.frame(pb_output)
-pb_output$p_ratio = pb_output$p2/pb_output$p1
+f_counterfactual('cf_ss_variance_1_norisk',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=FALSE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'ss');
 
+f_counterfactual('cf_ss_variance_1_nopref',within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'ss');
+
+f_counterfactual('cf_ss_variance_0-5_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 0.5, max_obj = 'ss');
+
+f_counterfactual('cf_ss_variance_2_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'ss');
+
+f_counterfactual(file_name_label = 'cf_cs_variance_1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, compute_mandate = TRUE, compute_penalty = TRUE, compute_risk = TRUE, compute_frontier = TRUE, max_obj = 'cs');
+
+f_counterfactual('cf_cs_variance_1_norisk',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=FALSE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'cs');
+
+f_counterfactual('cf_cs_variance_1_nopref',within_hh_heterogeneity = list(omega=FALSE, gamma=FALSE, delta=FALSE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'cs');
+
+f_counterfactual('cf_cs_variance_0-5_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 0.5, max_obj = 'cs');
+
+f_counterfactual('cf_cs_variance_2_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(1:100), contraction_variance = 1, max_obj = 'cs');
 
 
