@@ -1646,7 +1646,12 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 		for (i in elig_member_index) {
 			kappa_draw_onlyi = kappa_draw[[data_hh_i$HHsize_s[1] + 1]]
 			kappa_draw_onlyi[,setdiff(elig_member_index, i)] = 1
-			un_censored_R_uni[[i]] = income_vec[1] - (income_vec[1] - income_vec[2]) * risk_discrimination(beta_theta[i]) - rowSums(theta_draw * kappa_draw_onlyi) 
+			if (risk_discrimination_dummy) {
+				un_censored_R_uni[[i]] = income_vec[1] - (income_vec[1] - income_vec[2]) * risk_discrimination(beta_theta[i]) - rowSums(theta_draw * kappa_draw_onlyi) 
+			} else {
+				un_censored_R_uni[[i]] = income_vec[2] - rowSums(theta_draw * kappa_draw_onlyi) 
+			}
+			
 			R_draw_onlyi =  un_censored_R_uni[[i]]
 			kappa_draw_uni[[i]] = kappa_draw_onlyi
 			U_uni[i] = cara(U(list(theta_draw = theta_draw, R_draw = R_draw_onlyi, kappa_draw = kappa_draw_onlyi, gamma = gamma, delta = delta, omega = omega, HHsize = HHsize), income_effect))
@@ -1668,7 +1673,12 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 				kappa_draw[[n_insured + 1]][,member_order[n_insured]] = kappa_draw[[data_hh_i$HHsize_s[1] + 1]][,member_order[n_insured]]
 			}
 			if (n_insured > 0) {
-				un_censored_R[[1 + n_insured]] = income_vec[1] - (income_vec[1] - income_vec[2]) * sum(risk_discrimination(beta_theta[member_order[1:n_insured]])) - rowSums(theta_draw * kappa_draw[[1 + n_insured]])
+				if (risk_discrimination_dummy) {
+					un_censored_R[[1 + n_insured]] = income_vec[1] - (income_vec[1] - income_vec[2]) * sum(risk_discrimination(beta_theta[member_order[1:n_insured]])) - rowSums(theta_draw * kappa_draw[[1 + n_insured]])
+				} else {
+					un_censored_R[[1 + n_insured]] = income_vec[1 + n_insured] - rowSums(theta_draw * kappa_draw[[1 + n_insured]])
+				}
+				
 			} else {
 				un_censored_R[[1 + n_insured]] = income_vec[1] - rowSums(theta_draw * kappa_draw[[1 + n_insured]])
 			}

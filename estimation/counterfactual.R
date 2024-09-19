@@ -163,11 +163,11 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 			counterfactual_values_bd[[job_index]] = list();
 			counterfactual_values_pb[[job_index]] = list();
 
-			f_prem = function(prem, constraint_function, iter_list, job_index, return_long = FALSE, penalty = 0, compute_WTP = FALSE, wtp_mat = NA, cost_mat = NA, price_var = NA, risk_discrimination = function(x) 0) {
-				f_id = function(id, prem, penalty = 0) {
+			f_prem = function(prem, constraint_function, iter_list, job_index, return_long = FALSE, penalty = 0, compute_WTP = FALSE, wtp_mat = NA, cost_mat = NA, price_var = NA, risk_discrimination = function(x) 0, risk_discrimination_dummy = FALSE) {
+				f_id = function(id, prem, penalty = 0, compute_counterfactual_cost = TRUE) {
 					income_vec = counterfactual_premium(prem, id)
 					output = do.call('rbind', lapply(iter_list, function(iter) {
-						output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance, penalty = penalty, always_covered = FALSE, compute_wtp2 = TRUE, within_hh_heterogeneity = within_hh_heterogeneity, compute_WTP = TRUE, compute_counterfactual_cost = TRUE, afford = FALSE, risk_discrimination = risk_discrimination))
+						output = as.data.frame(counterfactual_household_draw_theta_kappa_Rdraw(id, transform_param_final, n_draw_halton, 10, param_final$sick, param_final$xi, u_lowerbar = -1, policy_mat_hh = policy_mat[[id]], seed_number = iter + job_index, constraint_function = constraint_function, income_vec = income_vec, contraction_variance = contraction_variance, penalty = penalty, always_covered = FALSE, compute_wtp2 = TRUE, within_hh_heterogeneity = within_hh_heterogeneity, compute_WTP = TRUE, compute_counterfactual_cost = compute_counterfactual_cost, afford = FALSE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = risk_discrimination_dummy))
 						output$iter = iter; 
 						output$Y = data_hh_list[[id]]$Income; 
 						output$m_observed = data_hh_list[[id]]$M_expense; 
@@ -232,18 +232,18 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 						if (is.na(price_var)) {
 							if (Sys.info()[['sysname']] == 'Windows') {
 								clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
-								counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty))
+								counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, compute_counterfactual_cost = FALSE))
 							} else {
-								counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty), mc.cores=numcores) 
+								counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, compute_counterfactual_cost = FALSE), mc.cores=numcores) 
 							}
 							counterfactual_values_bd = do.call('rbind', counterfactual_values_bd) %>% as.data.frame()
 							return(counterfactual_values_bd)
 						} else {
 							if (Sys.info()[['sysname']] == 'Windows') {
 								clusterExport(cl, c('prem', 'param_final', 'transform_param_final', 'job_index', 'constraint_function', 'contraction_variance'))
-								counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, risk_discrimination = risk_discrimination))
+								counterfactual_values_bd = parLapply(cl, c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, risk_discrimination = risk_discrimination, compute_counterfactual_cost = FALSE))
 							} else {
-								counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, risk_discrimination = risk_discrimination), mc.cores=numcores) 
+								counterfactual_values_bd = mclapply(c(list_hh_2012), function(id) f_id(id = id, prem = prem, penalty = penalty, risk_discrimination = risk_discrimination, compute_counterfactual_cost = FALSE), mc.cores=numcores) 
 							}
 							counterfactual_values_bd = do.call('rbind', counterfactual_values_bd) %>% as.data.frame()
 							return(counterfactual_values_bd)
@@ -270,7 +270,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
 				print('prem = '); print(prem)
 				output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-				final_output = -output[['ss']] + 1e2 * (output[['budget']] < benchmark_2012[['budget']])
+				final_output = -output[['ss']] + 1e4 * (output[['budget']] < benchmark_2012[['budget']])
 				print(output)
 				return(final_output)
 			})
@@ -305,7 +305,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				optimal_mandate = optimize(function(prem_normalized){
 					prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
 					output = f_prem(prem, function(x) c(-Inf, -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+					return(-output[['cs']] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
 				}, c(-5, 5), tol = 1e-3)
 
 				optimal_mandate_summary = f_prem(c(0, exp(optimal_mandate$minimum)/(1 + exp(optimal_mandate$minimum)) * 0.12), function(x) c(-Inf, -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
@@ -354,8 +354,8 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 
 				risk_discrimination = function(x) (x > median(output_base$counterfactual_values_bd$theta_bar)) + (x <= median(output_base$counterfactual_values_bd$theta_bar)) * (exp(optimal_risk$par[2])/(1 + exp(optimal_risk$par[2])))/(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])))
 
-				output_optimal_risk = f_prem(c(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.06, exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination)
-				output_optimal_risk_pb = f_prem(c(exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.06, exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination)
+				output_optimal_risk = f_prem(c(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.06, exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
+				output_optimal_risk_pb = f_prem(c(exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.06, exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
 
 			} else {
 				optimal_risk = list()
