@@ -392,7 +392,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 						prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
 						output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
 						return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_ip_all[[index]][['budget']]))
-					}, c(-5, 5), tol = 1e-3)
+					}, c(0, 5), tol = 1e-3)
 					benchmark_ip_all_output[[index]] = f_prem(c(p1, p1 * 2), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
 					optimal_bd_all_output[[index]] = f_prem(c(exp(optimal_bd_all[[index]]$par[1])/(1 + exp(optimal_bd_all[[index]]$par[1])) * 0.06, exp(optimal_bd_all[[index]]$par[1])/(1 + exp(optimal_bd_all[[index]]$par[1])) * 0.06 * (1 + exp(optimal_bd_all[[index]]$par[2])/(1 + exp(optimal_bd_all[[index]]$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
 					optimal_pb_all_output[[index]] = f_prem(c(exp(optimal_pb_all[[index]]$minimum)/(1 + exp(optimal_pb_all[[index]]$minimum)) * 0.06, exp(optimal_pb_all[[index]]$minimum)/(1 + exp(optimal_pb_all[[index]]$minimum)) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
