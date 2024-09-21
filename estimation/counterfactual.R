@@ -380,22 +380,23 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 					index = index + 1; 
 					prem = list(); 
 					prem[[2]] = c(p1, p1 * 2)
-					benchmark_ip_all[[index]] = f_prem(c(p1, p1 * 2), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = FALSE)
-					optimal_bd_all[[index]] = optim(c(log(1/(1 - p1/0.06) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+					optimal_pb_all_output[[index]] = f_prem(c(p1, p1 * 2), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE, constraint_function = function(x) c(x[1], -Inf, x[3]))
+					benchmark_budget = f_prem(c(p1, p1 *2), function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+					print('benchmark_budget = '); print(benchmark_budget)
+					optimal_bd_all[[index]] = optim(c(log(p1 * 2), 0), function(prem_normalized) {
 						prem = NULL
-						prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
+						prem[1] = exp(prem_normalized[1])
 						prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
+						print(prem)
 						output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-						return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_ip_all[[index]][['budget']]))
+						print(output)
+						return(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_budget[['budget']]))
 					})
-					optimal_pb_all[[index]] = optimize(function(prem_normalized){
-						prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
-						output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-						return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_ip_all[[index]][['budget']]))
-					}, c(0, 5), tol = 1e-3)
-					benchmark_ip_all_output[[index]] = f_prem(c(p1, p1 * 2), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
-					optimal_bd_all_output[[index]] = f_prem(c(exp(optimal_bd_all[[index]]$par[1])/(1 + exp(optimal_bd_all[[index]]$par[1])) * 0.06, exp(optimal_bd_all[[index]]$par[1])/(1 + exp(optimal_bd_all[[index]]$par[1])) * 0.06 * (1 + exp(optimal_bd_all[[index]]$par[2])/(1 + exp(optimal_bd_all[[index]]$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
-					optimal_pb_all_output[[index]] = f_prem(c(exp(optimal_pb_all[[index]]$minimum)/(1 + exp(optimal_pb_all[[index]]$minimum)) * 0.06, exp(optimal_pb_all[[index]]$minimum)/(1 + exp(optimal_pb_all[[index]]$minimum)) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+					
+					# benchmark_ip_all_output[[index]] = f_prem(c(p1, p1 * 2), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+					benchmark_ip_all_output[[index]]  = list()
+					optimal_bd_all_output[[index]] = f_prem(c(optimal_bd_all[[index]]$par[1] |> exp(), exp(optimal_bd_all[[index]]$par[1]) * (1 + exp(optimal_bd_all[[index]]$par[2])/(1 + exp(optimal_bd_all[[index]]$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+					
 				}				
 			} else {
 				ip_price = seq(0.005,0.055,0.01)
@@ -407,7 +408,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				benchmark_ip_all_output = list();
 			}
 			# compute across ip prices 
-			save(list = c('benchmark_ip_all', 'optimal_bd_all', 'optimal_pb_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
+			save(list = c('benchmark_ip_all', 'optimal_bd_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
 		}
 	}
 }
