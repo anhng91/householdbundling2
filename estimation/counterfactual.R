@@ -433,8 +433,8 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				benchmark_ip_all_output = list();
 			}
 			# compute across ip prices 
-			save(list = c('output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb'), file=filename)
-			# save(list = c('benchmark_ip_all', 'optimal_bd_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
+			# save(list = c('output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb'), file=filename)
+			save(list = c('benchmark_ip_all', 'optimal_bd_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
 		}
 	}
 }
