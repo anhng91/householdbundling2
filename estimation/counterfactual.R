@@ -101,7 +101,7 @@ if (mini) {
 	list_hh_2012 = sample(list_hh_2012, 100)
 }
 
-f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_iter, contraction_variance, compute_mandate = FALSE, compute_penalty = FALSE, compute_risk = FALSE, compute_frontier = FALSE, max_obj = 'ss') {
+f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_iter, contraction_variance, compute_mandate = FALSE, compute_penalty = FALSE, compute_risk = FALSE, compute_frontier = FALSE, max_obj = 'ss', recompute_basic = TRUE) {
 	for (job_index in job_index_list[job_index_iter]) {
 		print(paste0('at job_index = ', job_index))
 		if (file.exists(paste0('../../Obj_for_manuscript/counterfactual', file_name_label,'_',job_index,'.rdata'))) {
@@ -208,8 +208,8 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 								data_hh_i_eligible = output_base$counterfactual_values_bd %>% filter(id == list_hh_2012[row_index]) %>% filter(Bef_sts + Com_sts + Std_w_ins == 0)
 								prem_hh = NULL; 
 								type_mem = data_hh_i_eligible[[price_var]]
-								prem_hh[1] = type_mem[1] * exp(prem[1])/(1 + exp(prem[1])) * 0.06 + (1 - type_mem[1]) * exp(prem[2])/(1 + exp(prem[2])) * 0.06;
-								prem_hh[2] = type_mem[2] * exp(prem[1])/(1 + exp(prem[1])) * 0.06 + (1 - type_mem[2]) * exp(prem[2])/(1 + exp(prem[2])) * 0.06;
+								prem_hh[1] = type_mem[1] * prem[1] + (1 - type_mem[1]) * prem[2];
+								prem_hh[2] = type_mem[2] * prem[1] + (1 - type_mem[2]) * prem[2];
 								y = counterfactual_premium(c(prem_hh[1], 2 * prem_hh[1]), id = list_hh_2012[row_index]); 
 								prem_hh[1] = y[1] - y[2]
 								y = counterfactual_premium(c(prem_hh[2], 2 * prem_hh[2]), id = list_hh_2012[row_index]); 
@@ -259,47 +259,48 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 			prem_2012 = c(0.045, 1.9 * 0.045);
 			output_base = f_prem(prem_2012, constraint_function = function(x) x, iter_list = 1, job_index, return_long = TRUE, penalty = 0, compute_WTP = TRUE, wtp_mat = NA, cost_mat = NA); 
 
-			output_base$counterfactual_values_bd$high_theta = output_base$counterfactual_values_bd$theta_bar > median(output_base$counterfactual_values_bd$theta_bar)
-
 			benchmark_2012 = f_prem(prem_2012, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-			benchmark_2012[['job_index']] = job_index; 
+				benchmark_2012[['job_index']] = job_index; 
 
-			optimal_bd = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
-				prem = NULL
-				prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
-				prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
-				print('prem = '); print(prem)
-				output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-				final_output = -output[['ss']] + 1e4 * (output[['budget']] < benchmark_2012[['budget']])
-				print(output)
-				return(final_output)
-			})
+			if (recompute_basic) {
+				optimal_bd = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
+					prem = NULL
+					prem[1] = exp(prem_normalized[1])/(1 + exp(prem_normalized[1])) * 0.06;
+					prem[2] = prem[1] * (1 + exp(prem_normalized[2])/(1 + exp(prem_normalized[2])));
+					print('prem = '); print(prem)
+					output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+					final_output = -output[['ss']] + 1e4 * (output[['budget']] < benchmark_2012[['budget']])
+					print(output)
+					return(final_output)
+				})
 
-			optimal_bd_summary = f_prem(c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				optimal_bd_summary = f_prem(c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
 
-			output_optimal_bd = f_prem(prem = c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), constraint_function = function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE)
+				output_optimal_bd = f_prem(prem = c(exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06,  exp(optimal_bd$par[1])/(1 + exp(optimal_bd$par[1])) * 0.06 * (1 + exp(optimal_bd$par[2])/(1 + exp(optimal_bd$par[2])))), constraint_function = function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE)
 
-			optimal_pb = optimize(function(prem_normalized){
-				prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
-				output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-				print(output)
-				print(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
-				return(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
-			}, c(0, 5), tol = 1e-4)
+				optimal_pb = optimize(function(prem_normalized){
+					prem = c(0, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.12)
+					output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+					print(output)
+					print(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
+					return(-output[[max_obj]] + 1e2 * (output[['budget']] < benchmark_2012[['budget']]))
+				}, c(0, 5), tol = 1e-4)
 
-			optimal_pb_summary = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				optimal_pb_summary = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
 
-			output_optimal_pb = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+				output_optimal_pb = f_prem(c(0, exp(optimal_pb$minimum)/(1 + exp(optimal_pb$minimum)) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
 
-			optimal_ip = optimize(function(prem_normalized){
-				prem = c(exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06 * 2)
-				output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
-				return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
-			}, c(-5, 5), tol = 1e-3)
+				optimal_ip = optimize(function(prem_normalized){
+					prem = c(exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06, exp(prem_normalized)/(1 + exp(prem_normalized)) * 0.06 * 2)
+					output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+					print(output)
+					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
+				}, c(-5, 5), tol = 1e-3)
 
-			optimal_ip_summary = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
+				optimal_ip_summary = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat)
 
-			output_optimal_ip = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+				output_optimal_ip = f_prem(c(exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.06, exp(optimal_ip$minimum)/(1 + exp(optimal_ip$minimum)) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long = TRUE)
+			}
 
 			if (compute_mandate) {
 				optimal_mandate = optimize(function(prem_normalized){
@@ -315,6 +316,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				output_optimal_mandate = list()
 				optimal_mandate_summary = list() 
 			}
+
 
 			if (compute_penalty) {
 				optimal_penalty = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.9) - 1)), function(prem_normalized) {
@@ -336,26 +338,49 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				
 
 			if (compute_risk) {
-				optimal_risk = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.75) - 1)), function(prem_normalized) {
-					output = f_prem(prem_normalized, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, price_var = 'high_theta')
+				threshold = 0.5;
+				output_base$counterfactual_values_bd$high_theta = output_base$counterfactual_values_bd$theta_bar > quantile(output_base$counterfactual_values_bd$theta_bar, threshold)
+
+				optimal_risk = optim(c(0, optimal_ip$minimum), function(prem_normalized) {
+					prem = NULL
+					prem[2] = exp(prem_normalized[2])/(1 + exp(prem_normalized[2])) * 0.06;
+					prem[1] = prem[2] * exp(prem_normalized[1])
+					output = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, price_var = 'high_theta')
 					print(output)
+					print(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
 					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
 				})
 
-				optimal_risk_summary = f_prem(exp(optimal_risk$par)/(1 + exp(optimal_risk$par)) * 0.06, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
+				prem = NULL
+				prem[2] = exp(optimal_risk$par[2])/(1 + exp(optimal_risk$par[2])) * 0.06;
+				prem[1] = prem[2] * exp(optimal_risk$par[1])
 
-				optimal_risk_pb = optim(c(log(1/(1 - 0.75) - 1), log(1/(1 - 0.75) - 1)), function(prem_normalized) {
-					output = f_prem(prem_normalized, constraint_function = function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, price_var = 'high_theta')
+				optimal_risk_summary = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
+
+				risk_discrimination = function(x) (x > quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) + (x <= quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) * (exp(optimal_risk$par[2])/(1 + exp(optimal_risk$par[2])))/(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])))
+
+				output_optimal_risk = f_prem(prem, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
+
+
+				optimal_risk_pb = optim(c(0, optimal_ip$minimum), function(prem_normalized) {
+					prem = NULL
+					prem[2] = exp(prem_normalized[2])/(1 + exp(prem_normalized[2])) * 0.06;
+					prem[1] = prem[2] * exp(prem_normalized[1])
+					output = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, price_var = 'high_theta')
 					print(output)
+					print(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
 					return(-output[[max_obj]] + 1e4 * (output[['budget']] < benchmark_2012[['budget']]))
 				})
 
-				optimal_risk_summary_pb = f_prem(exp(optimal_risk$par)/(1 + exp(optimal_risk$par)) * 0.06, function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
+				prem = NULL
+				prem[2] = exp(optimal_risk_pb$par[2])/(1 + exp(optimal_risk_pb$par[2])) * 0.06;
+				prem[1] = prem[2] * exp(optimal_risk_pb$par[1])
 
-				risk_discrimination = function(x) (x > median(output_base$counterfactual_values_bd$theta_bar)) + (x <= median(output_base$counterfactual_values_bd$theta_bar)) * (exp(optimal_risk$par[2])/(1 + exp(optimal_risk$par[2])))/(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])))
+				optimal_risk_pb_summary = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
 
-				output_optimal_risk = f_prem(c(exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.06, exp(optimal_risk$par[1])/(1 + exp(optimal_risk$par[1])) * 0.12), function(x) x, 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
-				output_optimal_risk_pb = f_prem(c(exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.06, exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])) * 0.12), function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
+				risk_discrimination = function(x) (x > quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) + (x <= quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) * (exp(optimal_risk_pb$par[2])/(1 + exp(optimal_risk_pb$par[2])))/(exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])))
+
+				output_optimal_risk_pb = f_prem(prem, function(x) c(x[1], -Inf, x[3]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=TRUE, risk_discrimination = risk_discrimination, risk_discrimination_dummy = TRUE)
 
 			} else {
 				optimal_risk = list()
@@ -408,19 +433,22 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				benchmark_ip_all_output = list();
 			}
 			# compute across ip prices 
-			save(list = c('benchmark_ip_all', 'optimal_bd_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
+			save(list = c('output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb'), file=filename)
+			# save(list = c('benchmark_ip_all', 'optimal_bd_all', 'benchmark_ip_all_output', 'optimal_bd_all_output', 'optimal_pb_all_output', 'output_optimal_risk_pb', 'output_optimal_risk', 'optimal_risk','optimal_risk_pb', 'optimal_risk_summary', 'optimal_risk_summary_pb', 'optimal_mandate','output_optimal_mandate','optimal_mandate_summary','optimal_ip_summary','optimal_ip', 'output_optimal_ip','optimal_bd_summary','optimal_bd', 'output_optimal_bd','optimal_pb_summary','optimal_pb', 'output_optimal_pb', 'output_base', 'benchmark_2012'), file = filename)
 		}
 	}
 }
 
-for (i in 1:10) {
+for (i in 1:100) {
+f_counterfactual(file_name_label = 'cf_cs_variance_1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, compute_mandate = TRUE, compute_penalty = TRUE, compute_risk = TRUE, compute_frontier = TRUE, max_obj = 'cs', recompute_basic = TRUE);
 
-f_counterfactual(file_name_label = 'cf_ss_variance_1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, compute_mandate = TRUE, compute_penalty = TRUE, compute_risk = TRUE, compute_frontier = TRUE, max_obj = 'ss');
+f_counterfactual('cf_cs_variance_1_nomh',within_hh_heterogeneity = list(omega=TRUE, gamma=FALSE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'cs', compute_mandate = TRUE, recompute_basic = TRUE);
 
-f_counterfactual('cf_ss_variance_1_norisk',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=FALSE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'ss', compute_mandate = TRUE);
+f_counterfactual('cf_cs_variance_1_norisk',within_hh_heterogeneity = list(omega=TRUE, gamma=FALSE, delta=TRUE, theta_bar=FALSE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'cs', compute_mandate = TRUE, recompute_basic = TRUE);
 
-f_counterfactual('cf_ss_variance_0-1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 0.1, max_obj = 'ss', compute_mandate = TRUE);
+# f_counterfactual('cf_cs_variance_1_risk',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'cs', compute_risk = TRUE, recompute_basic = FALSE);
 
+f_counterfactual('cf_cs_variance_0_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 0, max_obj = 'cs', compute_mandate = TRUE);
 }
 
 

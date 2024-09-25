@@ -1533,7 +1533,11 @@ counterfactual_household_draw_theta_kappa_Rdraw = function(hh_index, param, n_dr
 	# Should within-household heterogeneity be allowed: 
 	if (data_hh_i$HHsize_s[1] > 0) {
 		if (!within_hh_heterogeneity$gamma) {
-			gamma[elig_member_index] = rep(mean(gamma[elig_member_index]), data_hh_i$HHsize_s[1])
+			if (!within_hh_heterogeneity$delta) {
+				gamma[elig_member_index] = rep(mean(gamma[elig_member_index]), data_hh_i$HHsize_s[1])
+			} else {
+				gamma[elig_member_index] = rep(0, data_hh_i$HHsize_s[1])
+			}
 		} 
 		if (!within_hh_heterogeneity$theta_bar) {
 			theta_bar[elig_member_index] = rep(mean(theta_bar[elig_member_index]), data_hh_i$HHsize_s[1])
