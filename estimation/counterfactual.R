@@ -448,7 +448,7 @@ f_counterfactual('cf_cs_variance_1_norisk',within_hh_heterogeneity = list(omega=
 
 # f_counterfactual('cf_cs_variance_1_risk',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'cs', compute_risk = TRUE, recompute_basic = FALSE);
 
-f_counterfactual('cf_cs_variance_0_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 0, max_obj = 'cs', compute_mandate = TRUE);
+f_counterfactual('cf_cs_variance_0_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 0, max_obj = 'cs', compute_mandate = TRUE, recompute_basic=TRUE);
 }
 
 
