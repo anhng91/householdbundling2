@@ -376,7 +376,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 				prem[2] = exp(optimal_risk_pb$par[2])/(1 + exp(optimal_risk_pb$par[2])) * 0.06;
 				prem[1] = prem[2] * exp(optimal_risk_pb$par[1])
 
-				optimal_risk_pb_summary = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
+				optimal_risk_summary_pb = f_prem(prem, function(x) c(x[1], -Inf, -Inf, x[4]), 1, job_index = job_index, wtp_mat = output_base$wtp_mat, cost_mat = output_base$cost_mat, return_long=FALSE)
 
 				risk_discrimination = function(x) (x > quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) + (x <= quantile(output_base$counterfactual_values_bd$theta_bar, threshold)) * (exp(optimal_risk_pb$par[2])/(1 + exp(optimal_risk_pb$par[2])))/(exp(optimal_risk_pb$par[1])/(1 + exp(optimal_risk_pb$par[1])))
 
@@ -439,7 +439,7 @@ f_counterfactual = function(file_name_label, within_hh_heterogeneity, job_index_
 	}
 }
 
-for (i in 1:100) {
+for (i in 100:1) {
 f_counterfactual(file_name_label = 'cf_cs_variance_1_full_heterogeneity',within_hh_heterogeneity = list(omega=TRUE, gamma=TRUE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, compute_mandate = TRUE, compute_penalty = TRUE, compute_risk = TRUE, compute_frontier = TRUE, max_obj = 'cs', recompute_basic = TRUE);
 
 f_counterfactual('cf_cs_variance_1_nomh',within_hh_heterogeneity = list(omega=TRUE, gamma=FALSE, delta=TRUE, theta_bar=TRUE), job_index_iter = c(i), contraction_variance = 1, max_obj = 'cs', compute_mandate = TRUE, recompute_basic = TRUE);
